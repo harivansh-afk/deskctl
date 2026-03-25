@@ -14,6 +14,7 @@ use x11rb::protocol::xproto::{
     WindowClass,
 };
 use x11rb::rust_connection::RustConnection;
+use x11rb::wrapper::ConnectionExt as X11WrapperConnectionExt;
 
 pub fn env_lock() -> &'static Mutex<()> {
     static LOCK: OnceLock<Mutex<()>> = OnceLock::new();
