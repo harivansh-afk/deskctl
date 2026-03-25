@@ -9,8 +9,7 @@ use x11rb::protocol::xproto::{
 };
 use x11rb::rust_connection::RustConnection;
 
-use super::annotate::annotate_screenshot;
-use crate::core::types::{Snapshot, WindowInfo};
+use crate::backend::BackendWindow;
 
 struct Atoms {
     client_list_stacking: Atom,
@@ -71,10 +70,9 @@ impl X11Backend {
         Ok(windows)
     }
 
-    fn collect_window_infos(&self) -> Result<Vec<WindowInfo>> {
+    fn collect_window_infos(&self) -> Result<Vec<BackendWindow>> {
         let active_window = self.active_window()?;
         let mut window_infos = Vec::new();
-        let mut ref_counter = 1usize;
 
         for window in self.stacked_windows()? {
             let title = self.window_title(window).unwrap_or_default();
@@ -89,9 +87,8 @@ impl X11Backend {
             };
 
             let minimized = self.window_is_minimized(window).unwrap_or(false);
-            window_infos.push(WindowInfo {
-                ref_id: format!("w{ref_counter}"),
-                xcb_id: window,
+            window_infos.push(BackendWindow {
+                native_id: window,
                 title,
                 app_name,
                 x,
@@ -101,7 +98,6 @@ impl X11Backend {
                 focused: active_window == Some(window),
                 minimized,
             });
-            ref_counter += 1;
         }
 
         Ok(window_infos)
@@ -231,32 +227,15 @@ impl X11Backend {
 }
 
 impl super::DesktopBackend for X11Backend {
-    fn snapshot(&mut self, annotate: bool) -> Result<Snapshot> {
-        let window_infos = self.collect_window_infos()?;
-        let mut image = self.capture_root_image()?;
-
-        // Annotate if requested - draw bounding boxes and @wN labels
-        if annotate {
-            annotate_screenshot(&mut image, &window_infos);
-        }
-
-        // Save screenshot
-        let timestamp = std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .unwrap_or_default()
-            .as_millis();
-        let screenshot_path = format!("/tmp/deskctl-{timestamp}.png");
-        image
-            .save(&screenshot_path)
-            .context("Failed to save screenshot")?;
-
-        Ok(Snapshot {
-            screenshot: screenshot_path,
-            windows: window_infos,
-        })
+    fn list_windows(&mut self) -> Result<Vec<BackendWindow>> {
+        self.collect_window_infos()
     }
 
-    fn focus_window(&mut self, xcb_id: u32) -> Result<()> {
+    fn capture_screenshot(&mut self) -> Result<RgbaImage> {
+        self.capture_root_image()
+    }
+
+    fn focus_window(&mut self, native_id: u32) -> Result<()> {
         // Use _NET_ACTIVE_WINDOW client message (avoids focus-stealing prevention)
         let net_active = self
             .conn
@@ -269,7 +248,7 @@ impl super::DesktopBackend for X11Backend {
             response_type: x11rb::protocol::xproto::CLIENT_MESSAGE_EVENT,
             format: 32,
             sequence: 0,
-            window: xcb_id,
+            window: native_id,
             type_: net_active,
             data: ClientMessageData::from([
                 2u32, 0, 0, 0, 0, // source=2 (pager), timestamp=0, currently_active=0
@@ -288,25 +267,25 @@ impl super::DesktopBackend for X11Backend {
         Ok(())
     }
 
-    fn move_window(&mut self, xcb_id: u32, x: i32, y: i32) -> Result<()> {
+    fn move_window(&mut self, native_id: u32, x: i32, y: i32) -> Result<()> {
         self.conn
-            .configure_window(xcb_id, &ConfigureWindowAux::new().x(x).y(y))?;
-        self.conn
-            .flush()
-            .context("Failed to flush X11 connection")?;
-        Ok(())
-    }
-
-    fn resize_window(&mut self, xcb_id: u32, w: u32, h: u32) -> Result<()> {
-        self.conn
-            .configure_window(xcb_id, &ConfigureWindowAux::new().width(w).height(h))?;
+            .configure_window(native_id, &ConfigureWindowAux::new().x(x).y(y))?;
         self.conn
             .flush()
             .context("Failed to flush X11 connection")?;
         Ok(())
     }
 
-    fn close_window(&mut self, xcb_id: u32) -> Result<()> {
+    fn resize_window(&mut self, native_id: u32, w: u32, h: u32) -> Result<()> {
+        self.conn
+            .configure_window(native_id, &ConfigureWindowAux::new().width(w).height(h))?;
+        self.conn
+            .flush()
+            .context("Failed to flush X11 connection")?;
+        Ok(())
+    }
+
+    fn close_window(&mut self, native_id: u32) -> Result<()> {
         // Use _NET_CLOSE_WINDOW for graceful close (respects WM protocols)
         let net_close = self
             .conn
@@ -319,7 +298,7 @@ impl super::DesktopBackend for X11Backend {
             response_type: x11rb::protocol::xproto::CLIENT_MESSAGE_EVENT,
             format: 32,
             sequence: 0,
-            window: xcb_id,
+            window: native_id,
             type_: net_close,
             data: ClientMessageData::from([
                 0u32, 2, 0, 0, 0, // timestamp=0, source=2 (pager)
@@ -461,18 +440,6 @@ impl super::DesktopBackend for X11Backend {
             .reply()
             .context("Failed to query pointer")?;
         Ok((reply.root_x as i32, reply.root_y as i32))
-    }
-
-    fn screenshot(&mut self, path: &str, annotate: bool) -> Result<String> {
-        let mut image = self.capture_root_image()?;
-
-        if annotate {
-            let window_infos = self.collect_window_infos()?;
-            annotate_screenshot(&mut image, &window_infos);
-        }
-
-        image.save(path).context("Failed to save screenshot")?;
-        Ok(path.to_string())
     }
 
     fn launch(&self, command: &str, args: &[String]) -> Result<u32> {

@@ -38,6 +38,9 @@ At the moment there are no extra native build dependencies beyond a Rust toolcha
 ## Quick Start
 
 ```bash
+# Diagnose the environment first
+deskctl doctor
+
 # See the desktop
 deskctl snapshot
 
@@ -70,9 +73,21 @@ For deskctl to be fully functional on a fresh VM you still need:
 - a window manager or desktop environment that exposes standard EWMH properties such as `_NET_CLIENT_LIST_STACKING` and `_NET_ACTIVE_WINDOW`
 - an X server with the extensions needed for input simulation and screen metadata, which is standard on normal desktop X11 setups
 
-## Wayland Support
+If setup fails, run:
 
-Coming soon. The trait-based backend design means adding Hyprland/Wayland support is a single trait implementation with zero refactoring of the core which is good.
+```bash
+deskctl doctor
+```
+
+## Contract Notes
+
+- `@wN` refs are short-lived handles assigned by `snapshot` and `list-windows`
+- `--json` output includes a stable `window_id` for programmatic targeting within the current daemon session
+- `list-windows` is a cheap read-only operation and does not capture or write a screenshot
+
+## Support Boundary
+
+`deskctl` supports Linux X11 in this phase. Wayland and Hyprland are explicitly out of scope for the current runtime contract.
 
 ## Acknowledgements
 

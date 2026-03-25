@@ -1,7 +1,6 @@
 mod handler;
 mod state;
 
-use std::path::PathBuf;
 use std::sync::Arc;
 
 use anyhow::{Context, Result};
@@ -9,6 +8,7 @@ use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
 use tokio::net::UnixListener;
 use tokio::sync::Mutex;
 
+use crate::core::paths::{pid_path_from_env, socket_path_from_env};
 use crate::core::session;
 use state::DaemonState;
 
@@ -24,11 +24,9 @@ pub fn run() -> Result<()> {
 }
 
 async fn async_run() -> Result<()> {
-    let socket_path = std::env::var("DESKCTL_SOCKET_PATH")
-        .map(PathBuf::from)
-        .context("DESKCTL_SOCKET_PATH not set")?;
+    let socket_path = socket_path_from_env().context("DESKCTL_SOCKET_PATH not set")?;
 
-    let pid_path = std::env::var("DESKCTL_PID_PATH").map(PathBuf::from).ok();
+    let pid_path = pid_path_from_env();
 
     // Clean up stale socket
     if socket_path.exists() {

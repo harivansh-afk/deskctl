@@ -1,25 +1,41 @@
 pub mod annotate;
 pub mod x11;
 
-use crate::core::types::Snapshot;
 use anyhow::Result;
+use image::RgbaImage;
+
+#[derive(Debug, Clone)]
+pub struct BackendWindow {
+    pub native_id: u32,
+    pub title: String,
+    pub app_name: String,
+    pub x: i32,
+    pub y: i32,
+    pub width: u32,
+    pub height: u32,
+    pub focused: bool,
+    pub minimized: bool,
+}
 
 #[allow(dead_code)]
 pub trait DesktopBackend: Send {
-    /// Capture a screenshot and return a z-ordered window tree with @wN refs.
-    fn snapshot(&mut self, annotate: bool) -> Result<Snapshot>;
+    /// Collect z-ordered windows for read-only queries and targeting.
+    fn list_windows(&mut self) -> Result<Vec<BackendWindow>>;
 
-    /// Focus a window by its X11 window ID.
-    fn focus_window(&mut self, xcb_id: u32) -> Result<()>;
+    /// Capture the current desktop image without writing it to disk.
+    fn capture_screenshot(&mut self) -> Result<RgbaImage>;
+
+    /// Focus a window by its backend-native window handle.
+    fn focus_window(&mut self, native_id: u32) -> Result<()>;
 
     /// Move a window to absolute coordinates.
-    fn move_window(&mut self, xcb_id: u32, x: i32, y: i32) -> Result<()>;
+    fn move_window(&mut self, native_id: u32, x: i32, y: i32) -> Result<()>;
 
     /// Resize a window.
-    fn resize_window(&mut self, xcb_id: u32, w: u32, h: u32) -> Result<()>;
+    fn resize_window(&mut self, native_id: u32, w: u32, h: u32) -> Result<()>;
 
     /// Close a window gracefully.
-    fn close_window(&mut self, xcb_id: u32) -> Result<()>;
+    fn close_window(&mut self, native_id: u32) -> Result<()>;
 
     /// Click at absolute coordinates.
     fn click(&mut self, x: i32, y: i32) -> Result<()>;
@@ -50,9 +66,6 @@ pub trait DesktopBackend: Send {
 
     /// Get the current mouse position.
     fn mouse_position(&self) -> Result<(i32, i32)>;
-
-    /// Take a screenshot and save to a path (no window tree).
-    fn screenshot(&mut self, path: &str, annotate: bool) -> Result<String>;
 
     /// Launch an application.
     fn launch(&self, command: &str, args: &[String]) -> Result<u32>;

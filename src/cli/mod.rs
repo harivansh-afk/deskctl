@@ -100,6 +100,8 @@ pub enum Command {
     GetScreenSize,
     /// Get current mouse position
     GetMousePosition,
+    /// Diagnose X11 runtime, screenshot, and daemon health
+    Doctor,
     /// Take a screenshot without window tree
     Screenshot {
         /// Save path (default: /tmp/deskctl-{timestamp}.png)
@@ -179,6 +181,10 @@ pub fn run() -> Result<()> {
         };
     }
 
+    if let Command::Doctor = app.command {
+        return connection::run_doctor(&app.global);
+    }
+
     // All other commands need a daemon connection
     let request = build_request(&app.command)?;
     let response = connection::send_command(&app.global, &request)?;
@@ -237,6 +243,7 @@ fn build_request(cmd: &Command) -> Result<Request> {
         Command::ListWindows => Request::new("list-windows"),
         Command::GetScreenSize => Request::new("get-screen-size"),
         Command::GetMousePosition => Request::new("get-mouse-position"),
+        Command::Doctor => unreachable!(),
         Command::Screenshot { path, annotate } => {
             let mut req = Request::new("screenshot").with_extra("annotate", json!(annotate));
             if let Some(p) = path {
@@ -261,7 +268,7 @@ fn print_response(cmd: &Command, response: &Response) -> Result<()> {
     }
     if let Some(ref data) = response.data {
         // For snapshot, print compact text format
-        if matches!(cmd, Command::Snapshot { .. }) {
+        if matches!(cmd, Command::Snapshot { .. } | Command::ListWindows) {
             if let Some(screenshot) = data.get("screenshot").and_then(|v| v.as_str()) {
                 println!("Screenshot: {screenshot}");
             }
