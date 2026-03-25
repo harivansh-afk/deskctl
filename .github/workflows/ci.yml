@@ -5,6 +5,8 @@ name: CI
 # runs-on: ${{ vars.UVA_RUNNER || 'ubuntu-latest' }}
 
 on:
+  pull_request:
+    branches: [main]
   push:
     branches: [main]
   workflow_dispatch:
@@ -14,8 +16,65 @@ permissions:
   packages: write
 
 jobs:
+  validate:
+    name: Validate
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy
+
+      - uses: Swatinem/rust-cache@v2
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: site/pnpm-lock.yaml
+
+      - name: Enable corepack
+        run: corepack enable
+
+      - name: Install site dependencies
+        run: pnpm --dir site install --frozen-lockfile
+
+      - name: Install system dependencies
+        run: sudo apt-get update && sudo apt-get install -y libx11-dev libxtst-dev
+
+      - name: Format check
+        run: make fmt-check
+
+      - name: Clippy
+        run: make lint
+
+      - name: Unit tests
+        run: make test-unit
+
+      - name: Site format check
+        run: make site-format-check
+
+  integration:
+    name: Integration (Xvfb)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Install system dependencies
+        run: sudo apt-get update && sudo apt-get install -y libx11-dev libxtst-dev xvfb
+
+      - name: Xvfb integration tests
+        run: make test-integration
+
   changes:
     name: Changes
+    needs: [validate, integration]
+    if: github.event_name != 'pull_request'
     runs-on: ubuntu-latest
     outputs:
       rust: ${{ steps.check.outputs.rust }}
@@ -32,9 +91,11 @@ jobs:
           filters: |
             rust:
               - 'src/**'
+              - 'tests/**'
               - 'Cargo.toml'
               - 'Cargo.lock'
               - 'docker/**'
+              - 'Makefile'
 
       - name: Set outputs
         id: check
@@ -69,7 +130,7 @@ jobs:
   build:
     name: Build (${{ matrix.target }})
     needs: changes
-    if: needs.changes.outputs.rust == 'true'
+    if: github.event_name != 'pull_request' && needs.changes.outputs.rust == 'true'
     runs-on: ubuntu-latest
     strategy:
       fail-fast: true
@@ -132,6 +193,7 @@ jobs:
   update-manifests:
     name: Update Manifests
     needs: [changes, build]
+    if: github.event_name != 'pull_request'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -165,6 +227,7 @@ jobs:
   release:
     name: Release
     needs: [changes, build, update-manifests]
+    if: github.event_name != 'pull_request'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
