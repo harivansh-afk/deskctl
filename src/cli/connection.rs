@@ -39,12 +39,10 @@ fn try_connect(opts: &GlobalOpts) -> Option<UnixStream> {
 }
 
 fn spawn_daemon(opts: &GlobalOpts) -> Result<()> {
-    let exe = std::env::current_exe()
-        .context("Failed to determine executable path")?;
+    let exe = std::env::current_exe().context("Failed to determine executable path")?;
 
     let sock_dir = socket_dir();
-    std::fs::create_dir_all(&sock_dir)
-        .context("Failed to create socket directory")?;
+    std::fs::create_dir_all(&sock_dir).context("Failed to create socket directory")?;
 
     let mut cmd = Command::new(exe);
     cmd.env("DESKCTL_DAEMON", "1")
@@ -109,8 +107,8 @@ pub fn send_command(opts: &GlobalOpts, request: &Request) -> Result<Response> {
     let mut line = String::new();
     reader.read_line(&mut line)?;
 
-    let response: Response = serde_json::from_str(line.trim())
-        .context("Failed to parse daemon response")?;
+    let response: Response =
+        serde_json::from_str(line.trim()).context("Failed to parse daemon response")?;
 
     Ok(response)
 }

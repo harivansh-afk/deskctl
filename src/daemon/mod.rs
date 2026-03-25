@@ -28,9 +28,7 @@ async fn async_run() -> Result<()> {
         .map(PathBuf::from)
         .context("DESKCTL_SOCKET_PATH not set")?;
 
-    let pid_path = std::env::var("DESKCTL_PID_PATH")
-        .map(PathBuf::from)
-        .ok();
+    let pid_path = std::env::var("DESKCTL_PID_PATH").map(PathBuf::from).ok();
 
     // Clean up stale socket
     if socket_path.exists() {
@@ -48,7 +46,7 @@ async fn async_run() -> Result<()> {
     let session = std::env::var("DESKCTL_SESSION").unwrap_or_else(|_| "default".to_string());
     let state = Arc::new(Mutex::new(
         DaemonState::new(session, socket_path.clone())
-            .context("Failed to initialize daemon state")?
+            .context("Failed to initialize daemon state")?,
     ));
 
     let shutdown = Arc::new(tokio::sync::Notify::new());
@@ -111,9 +109,8 @@ async fn handle_connection(
     // exits even if the client has already closed the connection.
     if request.action == "shutdown" {
         shutdown.notify_one();
-        let response = crate::core::protocol::Response::ok(
-            serde_json::json!({"message": "Shutting down"})
-        );
+        let response =
+            crate::core::protocol::Response::ok(serde_json::json!({"message": "Shutting down"}));
         let json = serde_json::to_string(&response)?;
         // Ignore write errors - client may have already closed the connection.
         let _ = writer.write_all(format!("{json}\n").as_bytes()).await;

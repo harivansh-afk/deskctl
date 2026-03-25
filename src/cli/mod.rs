@@ -1,8 +1,8 @@
 mod connection;
 
+use anyhow::Result;
 use clap::{Args, Parser, Subcommand};
 use std::path::PathBuf;
-use anyhow::Result;
 
 use crate::core::protocol::{Request, Response};
 
@@ -196,84 +196,57 @@ fn build_request(cmd: &Command) -> Result<Request> {
     use serde_json::json;
     let req = match cmd {
         Command::Snapshot { annotate } => {
-            Request::new("snapshot")
-                .with_extra("annotate", json!(annotate))
+            Request::new("snapshot").with_extra("annotate", json!(annotate))
         }
         Command::Click { selector } => {
-            Request::new("click")
-                .with_extra("selector", json!(selector))
+            Request::new("click").with_extra("selector", json!(selector))
         }
         Command::Dblclick { selector } => {
-            Request::new("dblclick")
-                .with_extra("selector", json!(selector))
+            Request::new("dblclick").with_extra("selector", json!(selector))
         }
-        Command::Type { text } => {
-            Request::new("type")
-                .with_extra("text", json!(text))
-        }
-        Command::Press { key } => {
-            Request::new("press")
-                .with_extra("key", json!(key))
-        }
-        Command::Hotkey { keys } => {
-            Request::new("hotkey")
-                .with_extra("keys", json!(keys))
-        }
+        Command::Type { text } => Request::new("type").with_extra("text", json!(text)),
+        Command::Press { key } => Request::new("press").with_extra("key", json!(key)),
+        Command::Hotkey { keys } => Request::new("hotkey").with_extra("keys", json!(keys)),
         Command::Mouse(sub) => match sub {
-            MouseCmd::Move { x, y } => {
-                Request::new("mouse-move")
-                    .with_extra("x", json!(x))
-                    .with_extra("y", json!(y))
-            }
-            MouseCmd::Scroll { amount, axis } => {
-                Request::new("mouse-scroll")
-                    .with_extra("amount", json!(amount))
-                    .with_extra("axis", json!(axis))
-            }
-            MouseCmd::Drag { x1, y1, x2, y2 } => {
-                Request::new("mouse-drag")
-                    .with_extra("x1", json!(x1))
-                    .with_extra("y1", json!(y1))
-                    .with_extra("x2", json!(x2))
-                    .with_extra("y2", json!(y2))
-            }
+            MouseCmd::Move { x, y } => Request::new("mouse-move")
+                .with_extra("x", json!(x))
+                .with_extra("y", json!(y)),
+            MouseCmd::Scroll { amount, axis } => Request::new("mouse-scroll")
+                .with_extra("amount", json!(amount))
+                .with_extra("axis", json!(axis)),
+            MouseCmd::Drag { x1, y1, x2, y2 } => Request::new("mouse-drag")
+                .with_extra("x1", json!(x1))
+                .with_extra("y1", json!(y1))
+                .with_extra("x2", json!(x2))
+                .with_extra("y2", json!(y2)),
         },
         Command::Focus { selector } => {
-            Request::new("focus")
-                .with_extra("selector", json!(selector))
+            Request::new("focus").with_extra("selector", json!(selector))
         }
         Command::Close { selector } => {
-            Request::new("close")
-                .with_extra("selector", json!(selector))
+            Request::new("close").with_extra("selector", json!(selector))
         }
-        Command::MoveWindow { selector, x, y } => {
-            Request::new("move-window")
-                .with_extra("selector", json!(selector))
-                .with_extra("x", json!(x))
-                .with_extra("y", json!(y))
-        }
-        Command::ResizeWindow { selector, w, h } => {
-            Request::new("resize-window")
-                .with_extra("selector", json!(selector))
-                .with_extra("w", json!(w))
-                .with_extra("h", json!(h))
-        }
+        Command::MoveWindow { selector, x, y } => Request::new("move-window")
+            .with_extra("selector", json!(selector))
+            .with_extra("x", json!(x))
+            .with_extra("y", json!(y)),
+        Command::ResizeWindow { selector, w, h } => Request::new("resize-window")
+            .with_extra("selector", json!(selector))
+            .with_extra("w", json!(w))
+            .with_extra("h", json!(h)),
         Command::ListWindows => Request::new("list-windows"),
         Command::GetScreenSize => Request::new("get-screen-size"),
         Command::GetMousePosition => Request::new("get-mouse-position"),
         Command::Screenshot { path, annotate } => {
-            let mut req = Request::new("screenshot")
-                .with_extra("annotate", json!(annotate));
+            let mut req = Request::new("screenshot").with_extra("annotate", json!(annotate));
             if let Some(p) = path {
                 req = req.with_extra("path", json!(p.to_string_lossy()));
             }
             req
         }
-        Command::Launch { command, args } => {
-            Request::new("launch")
-                .with_extra("command", json!(command))
-                .with_extra("args", json!(args))
-        }
+        Command::Launch { command, args } => Request::new("launch")
+            .with_extra("command", json!(command))
+            .with_extra("args", json!(args)),
         Command::Daemon(_) => unreachable!(),
     };
     Ok(req)
@@ -298,18 +271,30 @@ fn print_response(cmd: &Command, response: &Response) -> Result<()> {
                     let ref_id = w.get("ref_id").and_then(|v| v.as_str()).unwrap_or("?");
                     let title = w.get("title").and_then(|v| v.as_str()).unwrap_or("");
                     let focused = w.get("focused").and_then(|v| v.as_bool()).unwrap_or(false);
-                    let minimized = w.get("minimized").and_then(|v| v.as_bool()).unwrap_or(false);
+                    let minimized = w
+                        .get("minimized")
+                        .and_then(|v| v.as_bool())
+                        .unwrap_or(false);
                     let x = w.get("x").and_then(|v| v.as_i64()).unwrap_or(0);
                     let y = w.get("y").and_then(|v| v.as_i64()).unwrap_or(0);
                     let width = w.get("width").and_then(|v| v.as_u64()).unwrap_or(0);
                     let height = w.get("height").and_then(|v| v.as_u64()).unwrap_or(0);
-                    let state = if focused { "focused" } else if minimized { "hidden" } else { "visible" };
+                    let state = if focused {
+                        "focused"
+                    } else if minimized {
+                        "hidden"
+                    } else {
+                        "visible"
+                    };
                     let display_title = if title.len() > 30 {
                         format!("{}...", &title[..27])
                     } else {
                         title.to_string()
                     };
-                    println!("@{:<4} {:<30} ({:<7})  {},{} {}x{}", ref_id, display_title, state, x, y, width, height);
+                    println!(
+                        "@{:<4} {:<30} ({:<7})  {},{} {}x{}",
+                        ref_id, display_title, state, x, y, width, height
+                    );
                 }
             }
         } else {

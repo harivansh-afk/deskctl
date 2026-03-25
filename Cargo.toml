@@ -15,7 +15,6 @@ anyhow = "1"
 dirs = "6"
 libc = "0.2"
 uuid = { version = "1", features = ["v4"] }
-xcap = "0.8"
 image = { version = "0.25", features = ["png"] }
 imageproc = "0.26"
 ab_glyph = "0.2"

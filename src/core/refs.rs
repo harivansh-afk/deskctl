@@ -1,5 +1,5 @@
-use std::collections::HashMap;
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[allow(dead_code)]
@@ -26,7 +26,10 @@ pub struct RefMap {
 #[allow(dead_code)]
 impl RefMap {
     pub fn new() -> Self {
-        Self { map: HashMap::new(), next_ref: 1 }
+        Self {
+            map: HashMap::new(),
+            next_ref: 1,
+        }
     }
 
     pub fn clear(&mut self) {
@@ -57,16 +60,14 @@ impl RefMap {
         // Try substring match on app_class or title (case-insensitive)
         let lower = selector.to_lowercase();
         self.map.values().find(|e| {
-            e.app_class.to_lowercase().contains(&lower)
-                || e.title.to_lowercase().contains(&lower)
+            e.app_class.to_lowercase().contains(&lower) || e.title.to_lowercase().contains(&lower)
         })
     }
 
     /// Resolve a selector to the center coordinates of the window.
     pub fn resolve_to_center(&self, selector: &str) -> Option<(i32, i32)> {
-        self.resolve(selector).map(|e| {
-            (e.x + e.width as i32 / 2, e.y + e.height as i32 / 2)
-        })
+        self.resolve(selector)
+            .map(|e| (e.x + e.width as i32 / 2, e.y + e.height as i32 / 2))
     }
 
     pub fn entries(&self) -> impl Iterator<Item = (&String, &RefEntry)> {

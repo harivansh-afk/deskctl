@@ -1,8 +1,8 @@
 pub mod annotate;
 pub mod x11;
 
-use anyhow::Result;
 use crate::core::types::Snapshot;
+use anyhow::Result;
 
 #[allow(dead_code)]
 pub trait DesktopBackend: Send {

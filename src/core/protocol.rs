@@ -21,10 +21,14 @@ pub struct Response {
 impl Request {
     pub fn new(action: &str) -> Self {
         Self {
-            id: format!("r{}", std::time::SystemTime::now()
-                .duration_since(std::time::UNIX_EPOCH)
-                .unwrap_or_default()
-                .as_micros() % 1_000_000),
+            id: format!(
+                "r{}",
+                std::time::SystemTime::now()
+                    .duration_since(std::time::UNIX_EPOCH)
+                    .unwrap_or_default()
+                    .as_micros()
+                    % 1_000_000
+            ),
             action: action.to_string(),
             extra: Value::Object(serde_json::Map::new()),
         }
@@ -40,10 +44,18 @@ impl Request {
 
 impl Response {
     pub fn ok(data: Value) -> Self {
-        Self { success: true, data: Some(data), error: None }
+        Self {
+            success: true,
+            data: Some(data),
+            error: None,
+        }
     }
 
     pub fn err(msg: impl Into<String>) -> Self {
-        Self { success: false, data: None, error: Some(msg.into()) }
+        Self {
+            success: false,
+            data: None,
+            error: Some(msg.into()),
+        }
     }
 }

@@ -1,15 +1,12 @@
 use std::sync::Arc;
 use tokio::sync::Mutex;
 
+use super::state::DaemonState;
 use crate::backend::DesktopBackend;
 use crate::core::protocol::{Request, Response};
 use crate::core::refs::RefEntry;
-use super::state::DaemonState;
 
-pub async fn handle_request(
-    request: &Request,
-    state: &Arc<Mutex<DaemonState>>,
-) -> Response {
+pub async fn handle_request(request: &Request, state: &Arc<Mutex<DaemonState>>) -> Response {
     match request.action.as_str() {
         "snapshot" => handle_snapshot(request, state).await,
         "click" => handle_click(request, state).await,
@@ -33,10 +30,7 @@ pub async fn handle_request(
     }
 }
 
-async fn handle_snapshot(
-    request: &Request,
-    state: &Arc<Mutex<DaemonState>>,
-) -> Response {
+async fn handle_snapshot(request: &Request, state: &Arc<Mutex<DaemonState>>) -> Response {
     let annotate = request
         .extra
         .get("annotate")
@@ -70,10 +64,7 @@ async fn handle_snapshot(
     }
 }
 
-async fn handle_click(
-    request: &Request,
-    state: &Arc<Mutex<DaemonState>>,
-) -> Response {
+async fn handle_click(request: &Request, state: &Arc<Mutex<DaemonState>>) -> Response {
     let selector = match request.extra.get("selector").and_then(|v| v.as_str()) {
         Some(s) => s.to_string(),
         None => return Response::err("Missing 'selector' field"),
@@ -92,19 +83,16 @@ async fn handle_click(
     // Resolve as window ref
     match state.ref_map.resolve_to_center(&selector) {
         Some((x, y)) => match state.backend.click(x, y) {
-            Ok(()) => Response::ok(
-                serde_json::json!({"clicked": {"x": x, "y": y, "ref": selector}}),
-            ),
+            Ok(()) => {
+                Response::ok(serde_json::json!({"clicked": {"x": x, "y": y, "ref": selector}}))
+            }
             Err(e) => Response::err(format!("Click failed: {e}")),
         },
         None => Response::err(format!("Could not resolve selector: {selector}")),
     }
 }
 
-async fn handle_dblclick(
-    request: &Request,
-    state: &Arc<Mutex<DaemonState>>,
-) -> Response {
+async fn handle_dblclick(request: &Request, state: &Arc<Mutex<DaemonState>>) -> Response {
     let selector = match request.extra.get("selector").and_then(|v| v.as_str()) {
         Some(s) => s.to_string(),
         None => return Response::err("Missing 'selector' field"),
@@ -130,10 +118,7 @@ async fn handle_dblclick(
     }
 }
 
-async fn handle_type(
-    request: &Request,
-    state: &Arc<Mutex<DaemonState>>,
-) -> Response {
+async fn handle_type(request: &Request, state: &Arc<Mutex<DaemonState>>) -> Response {
     let text = match request.extra.get("text").and_then(|v| v.as_str()) {
         Some(t) => t.to_string(),
         None => return Response::err("Missing 'text' field"),
@@ -147,10 +132,7 @@ async fn handle_type(
     }
 }
 
-async fn handle_press(
-    request: &Request,
-    state: &Arc<Mutex<DaemonState>>,
-) -> Response {
+async fn handle_press(request: &Request, state: &Arc<Mutex<DaemonState>>) -> Response {
     let key = match request.extra.get("key").and_then(|v| v.as_str()) {
         Some(k) => k.to_string(),
         None => return Response::err("Missing 'key' field"),
@@ -164,10 +146,7 @@ async fn handle_press(
     }
 }
 
-async fn handle_hotkey(
-    request: &Request,
-    state: &Arc<Mutex<DaemonState>>,
-) -> Response {
+async fn handle_hotkey(request: &Request, state: &Arc<Mutex<DaemonState>>) -> Response {
     let keys: Vec<String> = match request.extra.get("keys").and_then(|v| v.as_array()) {
         Some(arr) => arr
             .iter()
@@ -184,10 +163,7 @@ async fn handle_hotkey(
     }
 }
 
-async fn handle_mouse_move(
-    request: &Request,
-    state: &Arc<Mutex<DaemonState>>,
-) -> Response {
+async fn handle_mouse_move(request: &Request, state: &Arc<Mutex<DaemonState>>) -> Response {
     let x = match request.extra.get("x").and_then(|v| v.as_i64()) {
         Some(v) => v as i32,
         None => return Response::err("Missing 'x' field"),
@@ -205,10 +181,7 @@ async fn handle_mouse_move(
     }
 }
 
-async fn handle_mouse_scroll(
-    request: &Request,
-    state: &Arc<Mutex<DaemonState>>,
-) -> Response {
+async fn handle_mouse_scroll(request: &Request, state: &Arc<Mutex<DaemonState>>) -> Response {
     let amount = match request.extra.get("amount").and_then(|v| v.as_i64()) {
         Some(v) => v as i32,
         None => return Response::err("Missing 'amount' field"),
@@ -223,17 +196,12 @@ async fn handle_mouse_scroll(
     let mut state = state.lock().await;
 
     match state.backend.scroll(amount, &axis) {
-        Ok(()) => {
-            Response::ok(serde_json::json!({"scrolled": {"amount": amount, "axis": axis}}))
-        }
+        Ok(()) => Response::ok(serde_json::json!({"scrolled": {"amount": amount, "axis": axis}})),
         Err(e) => Response::err(format!("Scroll failed: {e}")),
     }
 }
 
-async fn handle_mouse_drag(
-    request: &Request,
-    state: &Arc<Mutex<DaemonState>>,
-) -> Response {
+async fn handle_mouse_drag(request: &Request, state: &Arc<Mutex<DaemonState>>) -> Response {
     let x1 = match request.extra.get("x1").and_then(|v| v.as_i64()) {
         Some(v) => v as i32,
         None => return Response::err("Missing 'x1' field"),
@@ -297,10 +265,7 @@ async fn handle_window_action(
     }
 }
 
-async fn handle_move_window(
-    request: &Request,
-    state: &Arc<Mutex<DaemonState>>,
-) -> Response {
+async fn handle_move_window(request: &Request, state: &Arc<Mutex<DaemonState>>) -> Response {
     let selector = match request.extra.get("selector").and_then(|v| v.as_str()) {
         Some(s) => s.to_string(),
         None => return Response::err("Missing 'selector' field"),
@@ -322,16 +287,21 @@ async fn handle_move_window(
     }
 }
 
-async fn handle_resize_window(
-    request: &Request,
-    state: &Arc<Mutex<DaemonState>>,
-) -> Response {
+async fn handle_resize_window(request: &Request, state: &Arc<Mutex<DaemonState>>) -> Response {
     let selector = match request.extra.get("selector").and_then(|v| v.as_str()) {
         Some(s) => s.to_string(),
         None => return Response::err("Missing 'selector' field"),
     };
-    let w = request.extra.get("w").and_then(|v| v.as_u64()).unwrap_or(800) as u32;
-    let h = request.extra.get("h").and_then(|v| v.as_u64()).unwrap_or(600) as u32;
+    let w = request
+        .extra
+        .get("w")
+        .and_then(|v| v.as_u64())
+        .unwrap_or(800) as u32;
+    let h = request
+        .extra
+        .get("h")
+        .and_then(|v| v.as_u64())
+        .unwrap_or(600) as u32;
 
     let mut state = state.lock().await;
     let entry = match state.ref_map.resolve(&selector) {
@@ -347,9 +317,7 @@ async fn handle_resize_window(
     }
 }
 
-async fn handle_list_windows(
-    state: &Arc<Mutex<DaemonState>>,
-) -> Response {
+async fn handle_list_windows(state: &Arc<Mutex<DaemonState>>) -> Response {
     let mut state = state.lock().await;
     // Re-run snapshot without screenshot, just to get current window list
     match state.backend.snapshot(false) {
@@ -392,10 +360,7 @@ async fn handle_get_mouse_position(state: &Arc<Mutex<DaemonState>>) -> Response 
     }
 }
 
-async fn handle_screenshot(
-    request: &Request,
-    state: &Arc<Mutex<DaemonState>>,
-) -> Response {
+async fn handle_screenshot(request: &Request, state: &Arc<Mutex<DaemonState>>) -> Response {
     let annotate = request
         .extra
         .get("annotate")
@@ -420,10 +385,7 @@ async fn handle_screenshot(
     }
 }
 
-async fn handle_launch(
-    request: &Request,
-    state: &Arc<Mutex<DaemonState>>,
-) -> Response {
+async fn handle_launch(request: &Request, state: &Arc<Mutex<DaemonState>>) -> Response {
     let command = match request.extra.get("command").and_then(|v| v.as_str()) {
         Some(c) => c.to_string(),
         None => return Response::err("Missing 'command' field"),

@@ -1,85 +1,239 @@
 use anyhow::{Context, Result};
-use enigo::{
-    Axis, Button, Coordinate, Direction, Enigo, Key, Keyboard, Mouse, Settings,
-};
+use enigo::{Axis, Button, Coordinate, Direction, Enigo, Key, Keyboard, Mouse, Settings};
+use image::RgbaImage;
 use x11rb::connection::Connection;
 use x11rb::protocol::xproto::{
-    ClientMessageEvent, ConfigureWindowAux, ConnectionExt as XprotoConnectionExt,
-    EventMask,
+    Atom, AtomEnum, ClientMessageData, ClientMessageEvent, ConfigureWindowAux,
+    ConnectionExt as XprotoConnectionExt, EventMask, GetPropertyReply, ImageFormat, ImageOrder,
+    Window,
 };
 use x11rb::rust_connection::RustConnection;
 
 use super::annotate::annotate_screenshot;
 use crate::core::types::{Snapshot, WindowInfo};
 
+struct Atoms {
+    client_list_stacking: Atom,
+    active_window: Atom,
+    net_wm_name: Atom,
+    utf8_string: Atom,
+    wm_name: Atom,
+    wm_class: Atom,
+    net_wm_state: Atom,
+    net_wm_state_hidden: Atom,
+}
+
 pub struct X11Backend {
     enigo: Enigo,
     conn: RustConnection,
-    root: u32,
+    root: Window,
+    atoms: Atoms,
 }
 
 impl X11Backend {
     pub fn new() -> Result<Self> {
         let enigo = Enigo::new(&Settings::default())
             .map_err(|e| anyhow::anyhow!("Failed to initialize enigo: {e}"))?;
-        let (conn, screen_num) = x11rb::connect(None)
-            .context("Failed to connect to X11 server")?;
+        let (conn, screen_num) = x11rb::connect(None).context("Failed to connect to X11 server")?;
         let root = conn.setup().roots[screen_num].root;
-        Ok(Self { enigo, conn, root })
+        let atoms = Atoms::new(&conn)?;
+        Ok(Self {
+            enigo,
+            conn,
+            root,
+            atoms,
+        })
     }
-}
 
-impl super::DesktopBackend for X11Backend {
-    fn snapshot(&mut self, annotate: bool) -> Result<Snapshot> {
-        // Get z-ordered window list via xcap (topmost first internally)
-        let windows = xcap::Window::all().context("Failed to enumerate windows")?;
+    fn stacked_windows(&self) -> Result<Vec<Window>> {
+        let mut windows = self
+            .get_property_u32(
+                self.root,
+                self.atoms.client_list_stacking,
+                AtomEnum::WINDOW.into(),
+                1024,
+            )?
+            .into_iter()
+            .map(|id| id as Window)
+            .collect::<Vec<_>>();
 
-        // Get primary monitor for screenshot
-        let monitors = xcap::Monitor::all().context("Failed to enumerate monitors")?;
-        let monitor = monitors.into_iter().next().context("No monitor found")?;
+        if windows.is_empty() {
+            windows = self
+                .conn
+                .query_tree(self.root)?
+                .reply()
+                .context("Failed to query root window tree")?
+                .children;
+        }
 
-        let mut image = monitor
-            .capture_image()
-            .context("Failed to capture screenshot")?;
+        // EWMH exposes bottom-to-top stacking order. Reverse it so @w1 is the topmost window.
+        windows.reverse();
+        Ok(windows)
+    }
 
-        // Build window info list
+    fn collect_window_infos(&self) -> Result<Vec<WindowInfo>> {
+        let active_window = self.active_window()?;
         let mut window_infos = Vec::new();
         let mut ref_counter = 1usize;
 
-        for win in &windows {
-            // Each xcap method returns XCapResult<T> - skip windows where metadata fails
-            let title = win.title().unwrap_or_default();
-            let app_name = win.app_name().unwrap_or_default();
-
-            // Skip windows with empty titles and app names (desktop, panels, etc.)
+        for window in self.stacked_windows()? {
+            let title = self.window_title(window).unwrap_or_default();
+            let app_name = self.window_app_name(window).unwrap_or_default();
             if title.is_empty() && app_name.is_empty() {
                 continue;
             }
 
-            let xcb_id = win.id().unwrap_or(0);
-            let x = win.x().unwrap_or(0);
-            let y = win.y().unwrap_or(0);
-            let width = win.width().unwrap_or(0);
-            let height = win.height().unwrap_or(0);
-            let focused = win.is_focused().unwrap_or(false);
-            let minimized = win.is_minimized().unwrap_or(false);
+            let (x, y, width, height) = match self.window_geometry(window) {
+                Ok(geometry) => geometry,
+                Err(_) => continue,
+            };
 
-            let ref_id = format!("w{ref_counter}");
-            ref_counter += 1;
-
+            let minimized = self.window_is_minimized(window).unwrap_or(false);
             window_infos.push(WindowInfo {
-                ref_id,
-                xcb_id,
+                ref_id: format!("w{ref_counter}"),
+                xcb_id: window,
                 title,
                 app_name,
                 x,
                 y,
                 width,
                 height,
-                focused,
+                focused: active_window == Some(window),
                 minimized,
             });
+            ref_counter += 1;
         }
+
+        Ok(window_infos)
+    }
+
+    fn capture_root_image(&self) -> Result<RgbaImage> {
+        let (width, height) = self.root_geometry()?;
+        let reply = self
+            .conn
+            .get_image(
+                ImageFormat::Z_PIXMAP,
+                self.root,
+                0,
+                0,
+                width as u16,
+                height as u16,
+                u32::MAX,
+            )?
+            .reply()
+            .context("Failed to capture root window image")?;
+
+        rgba_from_image_reply(self.conn.setup(), width, height, &reply)
+    }
+
+    fn root_geometry(&self) -> Result<(u32, u32)> {
+        let geometry = self
+            .conn
+            .get_geometry(self.root)?
+            .reply()
+            .context("Failed to get root geometry")?;
+        Ok((geometry.width.into(), geometry.height.into()))
+    }
+
+    fn window_geometry(&self, window: Window) -> Result<(i32, i32, u32, u32)> {
+        let geometry = self
+            .conn
+            .get_geometry(window)?
+            .reply()
+            .context("Failed to get window geometry")?;
+        let translated = self
+            .conn
+            .translate_coordinates(window, self.root, 0, 0)?
+            .reply()
+            .context("Failed to translate window coordinates to root")?;
+
+        Ok((
+            i32::from(translated.dst_x),
+            i32::from(translated.dst_y),
+            geometry.width.into(),
+            geometry.height.into(),
+        ))
+    }
+
+    fn active_window(&self) -> Result<Option<Window>> {
+        Ok(self
+            .get_property_u32(
+                self.root,
+                self.atoms.active_window,
+                AtomEnum::WINDOW.into(),
+                1,
+            )?
+            .into_iter()
+            .next()
+            .map(|id| id as Window))
+    }
+
+    fn window_title(&self, window: Window) -> Result<String> {
+        let title =
+            self.read_text_property(window, self.atoms.net_wm_name, self.atoms.utf8_string)?;
+        if !title.is_empty() {
+            return Ok(title);
+        }
+
+        self.read_text_property(window, self.atoms.wm_name, AtomEnum::ANY.into())
+    }
+
+    fn window_app_name(&self, window: Window) -> Result<String> {
+        let wm_class =
+            self.read_text_property(window, self.atoms.wm_class, AtomEnum::STRING.into())?;
+        let mut parts = wm_class.split('\0').filter(|part| !part.is_empty());
+        Ok(parts
+            .nth(1)
+            .or_else(|| parts.next())
+            .unwrap_or("")
+            .to_string())
+    }
+
+    fn window_is_minimized(&self, window: Window) -> Result<bool> {
+        let states =
+            self.get_property_u32(window, self.atoms.net_wm_state, AtomEnum::ATOM.into(), 32)?;
+        Ok(states.contains(&self.atoms.net_wm_state_hidden))
+    }
+
+    fn read_text_property(&self, window: Window, property: Atom, type_: Atom) -> Result<String> {
+        let reply = self.get_property(window, property, type_, 1024)?;
+        Ok(String::from_utf8_lossy(&reply.value)
+            .trim_end_matches('\0')
+            .to_string())
+    }
+
+    fn get_property_u32(
+        &self,
+        window: Window,
+        property: Atom,
+        type_: Atom,
+        long_length: u32,
+    ) -> Result<Vec<u32>> {
+        let reply = self.get_property(window, property, type_, long_length)?;
+        Ok(reply
+            .value32()
+            .map(|iter| iter.collect::<Vec<_>>())
+            .unwrap_or_default())
+    }
+
+    fn get_property(
+        &self,
+        window: Window,
+        property: Atom,
+        type_: Atom,
+        long_length: u32,
+    ) -> Result<GetPropertyReply> {
+        self.conn
+            .get_property(false, window, property, type_, 0, long_length)?
+            .reply()
+            .with_context(|| format!("Failed to read property {property} from window {window}"))
+    }
+}
+
+impl super::DesktopBackend for X11Backend {
+    fn snapshot(&mut self, annotate: bool) -> Result<Snapshot> {
+        let window_infos = self.collect_window_infos()?;
+        let mut image = self.capture_root_image()?;
 
         // Annotate if requested - draw bounding boxes and @wN labels
         if annotate {
@@ -117,7 +271,7 @@ impl super::DesktopBackend for X11Backend {
             sequence: 0,
             window: xcb_id,
             type_: net_active,
-            data: x11rb::protocol::xproto::ClientMessageData::from([
+            data: ClientMessageData::from([
                 2u32, 0, 0, 0, 0, // source=2 (pager), timestamp=0, currently_active=0
             ]),
         };
@@ -128,21 +282,27 @@ impl super::DesktopBackend for X11Backend {
             EventMask::SUBSTRUCTURE_REDIRECT | EventMask::SUBSTRUCTURE_NOTIFY,
             event,
         )?;
-        self.conn.flush().context("Failed to flush X11 connection")?;
+        self.conn
+            .flush()
+            .context("Failed to flush X11 connection")?;
         Ok(())
     }
 
     fn move_window(&mut self, xcb_id: u32, x: i32, y: i32) -> Result<()> {
         self.conn
             .configure_window(xcb_id, &ConfigureWindowAux::new().x(x).y(y))?;
-        self.conn.flush().context("Failed to flush X11 connection")?;
+        self.conn
+            .flush()
+            .context("Failed to flush X11 connection")?;
         Ok(())
     }
 
     fn resize_window(&mut self, xcb_id: u32, w: u32, h: u32) -> Result<()> {
         self.conn
             .configure_window(xcb_id, &ConfigureWindowAux::new().width(w).height(h))?;
-        self.conn.flush().context("Failed to flush X11 connection")?;
+        self.conn
+            .flush()
+            .context("Failed to flush X11 connection")?;
         Ok(())
     }
 
@@ -161,7 +321,7 @@ impl super::DesktopBackend for X11Backend {
             sequence: 0,
             window: xcb_id,
             type_: net_close,
-            data: x11rb::protocol::xproto::ClientMessageData::from([
+            data: ClientMessageData::from([
                 0u32, 2, 0, 0, 0, // timestamp=0, source=2 (pager)
             ]),
         };
@@ -172,7 +332,9 @@ impl super::DesktopBackend for X11Backend {
             EventMask::SUBSTRUCTURE_REDIRECT | EventMask::SUBSTRUCTURE_NOTIFY,
             event,
         )?;
-        self.conn.flush().context("Failed to flush X11 connection")?;
+        self.conn
+            .flush()
+            .context("Failed to flush X11 connection")?;
         Ok(())
     }
 
@@ -289,11 +451,7 @@ impl super::DesktopBackend for X11Backend {
     }
 
     fn screen_size(&self) -> Result<(u32, u32)> {
-        let monitors = xcap::Monitor::all().context("Failed to enumerate monitors")?;
-        let monitor = monitors.into_iter().next().context("No monitor found")?;
-        let w = monitor.width().context("Failed to get monitor width")?;
-        let h = monitor.height().context("Failed to get monitor height")?;
-        Ok((w, h))
+        self.root_geometry()
     }
 
     fn mouse_position(&self) -> Result<(i32, i32)> {
@@ -306,37 +464,10 @@ impl super::DesktopBackend for X11Backend {
     }
 
     fn screenshot(&mut self, path: &str, annotate: bool) -> Result<String> {
-        let monitors = xcap::Monitor::all().context("Failed to enumerate monitors")?;
-        let monitor = monitors.into_iter().next().context("No monitor found")?;
-
-        let mut image = monitor
-            .capture_image()
-            .context("Failed to capture screenshot")?;
+        let mut image = self.capture_root_image()?;
 
         if annotate {
-            let windows = xcap::Window::all().unwrap_or_default();
-            let mut window_infos = Vec::new();
-            let mut ref_counter = 1usize;
-            for win in &windows {
-                let title = win.title().unwrap_or_default();
-                let app_name = win.app_name().unwrap_or_default();
-                if title.is_empty() && app_name.is_empty() {
-                    continue;
-                }
-                window_infos.push(crate::core::types::WindowInfo {
-                    ref_id: format!("w{ref_counter}"),
-                    xcb_id: win.id().unwrap_or(0),
-                    title,
-                    app_name,
-                    x: win.x().unwrap_or(0),
-                    y: win.y().unwrap_or(0),
-                    width: win.width().unwrap_or(0),
-                    height: win.height().unwrap_or(0),
-                    focused: win.is_focused().unwrap_or(false),
-                    minimized: win.is_minimized().unwrap_or(false),
-                });
-                ref_counter += 1;
-            }
+            let window_infos = self.collect_window_infos()?;
             annotate_screenshot(&mut image, &window_infos);
         }
 
@@ -402,5 +533,123 @@ fn parse_key(name: &str) -> Result<Key> {
         s if s.len() == 1 => Ok(Key::Unicode(s.chars().next().unwrap())),
 
         other => anyhow::bail!("Unknown key: {other}"),
+    }
+}
+
+impl Atoms {
+    fn new(conn: &RustConnection) -> Result<Self> {
+        Ok(Self {
+            client_list_stacking: intern_atom(conn, b"_NET_CLIENT_LIST_STACKING")?,
+            active_window: intern_atom(conn, b"_NET_ACTIVE_WINDOW")?,
+            net_wm_name: intern_atom(conn, b"_NET_WM_NAME")?,
+            utf8_string: intern_atom(conn, b"UTF8_STRING")?,
+            wm_name: intern_atom(conn, b"WM_NAME")?,
+            wm_class: intern_atom(conn, b"WM_CLASS")?,
+            net_wm_state: intern_atom(conn, b"_NET_WM_STATE")?,
+            net_wm_state_hidden: intern_atom(conn, b"_NET_WM_STATE_HIDDEN")?,
+        })
+    }
+}
+
+fn intern_atom(conn: &RustConnection, name: &[u8]) -> Result<Atom> {
+    conn.intern_atom(false, name)?
+        .reply()
+        .with_context(|| format!("Failed to intern atom {}", String::from_utf8_lossy(name)))
+        .map(|reply| reply.atom)
+}
+
+fn rgba_from_image_reply(
+    setup: &x11rb::protocol::xproto::Setup,
+    width: u32,
+    height: u32,
+    reply: &x11rb::protocol::xproto::GetImageReply,
+) -> Result<RgbaImage> {
+    let pixmap_format = setup
+        .pixmap_formats
+        .iter()
+        .find(|format| format.depth == reply.depth)
+        .context("Failed to find pixmap format for captured image depth")?;
+    let bits_per_pixel = u32::from(pixmap_format.bits_per_pixel);
+    let bit_order = setup.bitmap_format_bit_order;
+    let bytes = reply.data.as_slice();
+
+    let get_pixel_rgba = match reply.depth {
+        8 => pixel8_rgba,
+        16 => pixel16_rgba,
+        24 | 32 => pixel24_32_rgba,
+        depth => anyhow::bail!("Unsupported X11 image depth: {depth}"),
+    };
+
+    let mut rgba = vec![0u8; (width * height * 4) as usize];
+    for y in 0..height {
+        for x in 0..width {
+            let index = ((y * width + x) * 4) as usize;
+            let (r, g, b, a) = get_pixel_rgba(bytes, x, y, width, bits_per_pixel, bit_order);
+            rgba[index] = r;
+            rgba[index + 1] = g;
+            rgba[index + 2] = b;
+            rgba[index + 3] = a;
+        }
+    }
+
+    RgbaImage::from_raw(width, height, rgba)
+        .context("Failed to convert captured X11 image into RGBA buffer")
+}
+
+fn pixel8_rgba(
+    bytes: &[u8],
+    x: u32,
+    y: u32,
+    width: u32,
+    bits_per_pixel: u32,
+    bit_order: ImageOrder,
+) -> (u8, u8, u8, u8) {
+    let index = ((y * width + x) * bits_per_pixel / 8) as usize;
+    let pixel = if bit_order == ImageOrder::LSB_FIRST {
+        bytes[index]
+    } else {
+        bytes[index] & (7 << 4) | (bytes[index] >> 4)
+    };
+
+    let r = (pixel >> 6) as f32 / 3.0 * 255.0;
+    let g = ((pixel >> 2) & 7) as f32 / 7.0 * 255.0;
+    let b = (pixel & 3) as f32 / 3.0 * 255.0;
+    (r as u8, g as u8, b as u8, 255)
+}
+
+fn pixel16_rgba(
+    bytes: &[u8],
+    x: u32,
+    y: u32,
+    width: u32,
+    bits_per_pixel: u32,
+    bit_order: ImageOrder,
+) -> (u8, u8, u8, u8) {
+    let index = ((y * width + x) * bits_per_pixel / 8) as usize;
+    let pixel = if bit_order == ImageOrder::LSB_FIRST {
+        u16::from(bytes[index]) | (u16::from(bytes[index + 1]) << 8)
+    } else {
+        (u16::from(bytes[index]) << 8) | u16::from(bytes[index + 1])
+    };
+
+    let r = (pixel >> 11) as f32 / 31.0 * 255.0;
+    let g = ((pixel >> 5) & 63) as f32 / 63.0 * 255.0;
+    let b = (pixel & 31) as f32 / 31.0 * 255.0;
+    (r as u8, g as u8, b as u8, 255)
+}
+
+fn pixel24_32_rgba(
+    bytes: &[u8],
+    x: u32,
+    y: u32,
+    width: u32,
+    bits_per_pixel: u32,
+    bit_order: ImageOrder,
+) -> (u8, u8, u8, u8) {
+    let index = ((y * width + x) * bits_per_pixel / 8) as usize;
+    if bit_order == ImageOrder::LSB_FIRST {
+        (bytes[index + 2], bytes[index + 1], bytes[index], 255)
+    } else {
+        (bytes[index], bytes[index + 1], bytes[index + 2], 255)
     }
 }

@@ -45,11 +45,7 @@ pub fn annotate_screenshot(image: &mut RgbaImage, windows: &[WindowInfo]) {
         if w > 0 && h > 0 {
             draw_hollow_rect_mut(image, Rect::at(x, y).of_size(w, h), color);
             if w > 2 && h > 2 {
-                draw_hollow_rect_mut(
-                    image,
-                    Rect::at(x + 1, y + 1).of_size(w - 2, h - 2),
-                    color,
-                );
+                draw_hollow_rect_mut(image, Rect::at(x + 1, y + 1).of_size(w - 2, h - 2), color);
             }
         }
 
@@ -67,6 +63,14 @@ pub fn annotate_screenshot(image: &mut RgbaImage, windows: &[WindowInfo]) {
         );
 
         // Label text
-        draw_text_mut(image, LABEL_FG, label_x + 3, label_y + 2, scale, &font, &label);
+        draw_text_mut(
+            image,
+            LABEL_FG,
+            label_x + 3,
+            label_y + 2,
+            scale,
+            &font,
+            &label,
+        );
     }
 }
