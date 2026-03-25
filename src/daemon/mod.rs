@@ -46,7 +46,10 @@ async fn async_run() -> Result<()> {
         .context(format!("Failed to bind socket: {}", socket_path.display()))?;
 
     let session = std::env::var("DESKTOP_CTL_SESSION").unwrap_or_else(|_| "default".to_string());
-    let state = Arc::new(Mutex::new(DaemonState::new(session, socket_path.clone())));
+    let state = Arc::new(Mutex::new(
+        DaemonState::new(session, socket_path.clone())
+            .context("Failed to initialize daemon state")?
+    ));
 
     let shutdown = Arc::new(tokio::sync::Notify::new());
     let shutdown_clone = shutdown.clone();
