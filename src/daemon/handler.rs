@@ -25,6 +25,10 @@ pub async fn handle_request(
         "move-window" => handle_move_window(request, state).await,
         "resize-window" => handle_resize_window(request, state).await,
         "list-windows" => handle_list_windows(state).await,
+        "get-screen-size" => handle_get_screen_size(state).await,
+        "get-mouse-position" => handle_get_mouse_position(state).await,
+        "screenshot" => handle_screenshot(request, state).await,
+        "launch" => handle_launch(request, state).await,
         action => Response::err(format!("Unknown action: {action}")),
     }
 }
@@ -369,6 +373,75 @@ async fn handle_list_windows(
             Response::ok(serde_json::json!({"windows": snapshot.windows}))
         }
         Err(e) => Response::err(format!("List windows failed: {e}")),
+    }
+}
+
+async fn handle_get_screen_size(state: &Arc<Mutex<DaemonState>>) -> Response {
+    let state = state.lock().await;
+    match state.backend.screen_size() {
+        Ok((w, h)) => Response::ok(serde_json::json!({"width": w, "height": h})),
+        Err(e) => Response::err(format!("Failed: {e}")),
+    }
+}
+
+async fn handle_get_mouse_position(state: &Arc<Mutex<DaemonState>>) -> Response {
+    let state = state.lock().await;
+    match state.backend.mouse_position() {
+        Ok((x, y)) => Response::ok(serde_json::json!({"x": x, "y": y})),
+        Err(e) => Response::err(format!("Failed: {e}")),
+    }
+}
+
+async fn handle_screenshot(
+    request: &Request,
+    state: &Arc<Mutex<DaemonState>>,
+) -> Response {
+    let annotate = request
+        .extra
+        .get("annotate")
+        .and_then(|v| v.as_bool())
+        .unwrap_or(false);
+    let path = request
+        .extra
+        .get("path")
+        .and_then(|v| v.as_str())
+        .map(|s| s.to_string())
+        .unwrap_or_else(|| {
+            let ts = std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap_or_default()
+                .as_millis();
+            format!("/tmp/desktop-ctl-{ts}.png")
+        });
+    let mut state = state.lock().await;
+    match state.backend.screenshot(&path, annotate) {
+        Ok(saved) => Response::ok(serde_json::json!({"screenshot": saved})),
+        Err(e) => Response::err(format!("Screenshot failed: {e}")),
+    }
+}
+
+async fn handle_launch(
+    request: &Request,
+    state: &Arc<Mutex<DaemonState>>,
+) -> Response {
+    let command = match request.extra.get("command").and_then(|v| v.as_str()) {
+        Some(c) => c.to_string(),
+        None => return Response::err("Missing 'command' field"),
+    };
+    let args: Vec<String> = request
+        .extra
+        .get("args")
+        .and_then(|v| v.as_array())
+        .map(|arr| {
+            arr.iter()
+                .filter_map(|v| v.as_str().map(String::from))
+                .collect()
+        })
+        .unwrap_or_default();
+    let state = state.lock().await;
+    match state.backend.launch(&command, &args) {
+        Ok(pid) => Response::ok(serde_json::json!({"pid": pid, "command": command})),
+        Err(e) => Response::err(format!("Launch failed: {e}")),
     }
 }
 

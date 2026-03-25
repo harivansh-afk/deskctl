@@ -288,22 +288,71 @@ impl super::DesktopBackend for X11Backend {
         Ok(())
     }
 
-    // Phase 6: utility stubs
-
     fn screen_size(&self) -> Result<(u32, u32)> {
-        anyhow::bail!("Utility commands not yet implemented (Phase 6)")
+        let monitors = xcap::Monitor::all().context("Failed to enumerate monitors")?;
+        let monitor = monitors.into_iter().next().context("No monitor found")?;
+        let w = monitor.width().context("Failed to get monitor width")?;
+        let h = monitor.height().context("Failed to get monitor height")?;
+        Ok((w, h))
     }
 
     fn mouse_position(&self) -> Result<(i32, i32)> {
-        anyhow::bail!("Utility commands not yet implemented (Phase 6)")
+        let reply = self
+            .conn
+            .query_pointer(self.root)?
+            .reply()
+            .context("Failed to query pointer")?;
+        Ok((reply.root_x as i32, reply.root_y as i32))
     }
 
-    fn screenshot(&mut self, _path: &str, _annotate: bool) -> Result<String> {
-        anyhow::bail!("Standalone screenshot not yet implemented (Phase 6)")
+    fn screenshot(&mut self, path: &str, annotate: bool) -> Result<String> {
+        let monitors = xcap::Monitor::all().context("Failed to enumerate monitors")?;
+        let monitor = monitors.into_iter().next().context("No monitor found")?;
+
+        let mut image = monitor
+            .capture_image()
+            .context("Failed to capture screenshot")?;
+
+        if annotate {
+            let windows = xcap::Window::all().unwrap_or_default();
+            let mut window_infos = Vec::new();
+            let mut ref_counter = 1usize;
+            for win in &windows {
+                let title = win.title().unwrap_or_default();
+                let app_name = win.app_name().unwrap_or_default();
+                if title.is_empty() && app_name.is_empty() {
+                    continue;
+                }
+                window_infos.push(crate::core::types::WindowInfo {
+                    ref_id: format!("w{ref_counter}"),
+                    xcb_id: win.id().unwrap_or(0),
+                    title,
+                    app_name,
+                    x: win.x().unwrap_or(0),
+                    y: win.y().unwrap_or(0),
+                    width: win.width().unwrap_or(0),
+                    height: win.height().unwrap_or(0),
+                    focused: win.is_focused().unwrap_or(false),
+                    minimized: win.is_minimized().unwrap_or(false),
+                });
+                ref_counter += 1;
+            }
+            annotate_screenshot(&mut image, &window_infos);
+        }
+
+        image.save(path).context("Failed to save screenshot")?;
+        Ok(path.to_string())
     }
 
-    fn launch(&self, _command: &str, _args: &[String]) -> Result<u32> {
-        anyhow::bail!("Launch not yet implemented (Phase 6)")
+    fn launch(&self, command: &str, args: &[String]) -> Result<u32> {
+        let child = std::process::Command::new(command)
+            .args(args)
+            .stdin(std::process::Stdio::null())
+            .stdout(std::process::Stdio::null())
+            .stderr(std::process::Stdio::null())
+            .spawn()
+            .with_context(|| format!("Failed to launch: {command}"))?;
+        Ok(child.id())
     }
 }
 
