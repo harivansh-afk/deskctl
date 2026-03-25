@@ -15,12 +15,16 @@ permissions:
 
 jobs:
   changes:
-    name: Detect Changes
+    name: Changes
     runs-on: ubuntu-latest
     outputs:
       rust: ${{ steps.check.outputs.rust }}
+      version: ${{ steps.version.outputs.version }}
+      tag: ${{ steps.version.outputs.tag }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - uses: dorny/paths-filter@v3
         id: filter
@@ -41,21 +45,9 @@ jobs:
             echo "rust=${{ steps.filter.outputs.rust }}" >> "$GITHUB_OUTPUT"
           fi
 
-  version:
-    name: Next Version
-    needs: changes
-    if: needs.changes.outputs.rust == 'true'
-    runs-on: ubuntu-latest
-    outputs:
-      version: ${{ steps.next.outputs.version }}
-      tag: ${{ steps.next.outputs.tag }}
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-
       - name: Calculate next version
-        id: next
+        id: version
+        if: steps.check.outputs.rust == 'true'
         run: |
           BASE=$(grep '^version' Cargo.toml | head -1 | sed 's/.*"\(.*\)"/\1/')
           IFS='.' read -r MAJOR MINOR PATCH <<< "$BASE"
@@ -74,65 +66,72 @@ jobs:
           echo "version=${NEW}" >> "$GITHUB_OUTPUT"
           echo "tag=v${NEW}" >> "$GITHUB_OUTPUT"
 
-  cargo:
-    name: Build and Test
-    needs: [changes, version]
+  build:
+    name: Build (${{ matrix.target }})
+    needs: changes
     if: needs.changes.outputs.rust == 'true'
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: true
+      matrix:
+        target: [cargo, docker]
     steps:
       - uses: actions/checkout@v4
 
+      # --- Cargo steps ---
       - uses: dtolnay/rust-toolchain@stable
+        if: matrix.target == 'cargo'
         with:
           components: clippy
 
       - uses: Swatinem/rust-cache@v2
+        if: matrix.target == 'cargo'
 
       - name: Install system dependencies
+        if: matrix.target == 'cargo'
         run: sudo apt-get update && sudo apt-get install -y libx11-dev libxtst-dev
 
       - name: Clippy
+        if: matrix.target == 'cargo'
         run: cargo clippy -- -D warnings
 
       - name: Build
+        if: matrix.target == 'cargo'
         run: cargo build --release --locked
 
       - uses: actions/upload-artifact@v4
+        if: matrix.target == 'cargo'
         with:
           name: deskctl-linux-x86_64
           path: target/release/deskctl
           retention-days: 7
 
-  docker:
-    name: Docker
-    needs: [changes, version, cargo]
-    if: needs.changes.outputs.rust == 'true'
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-
+      # --- Docker steps ---
       - uses: docker/setup-buildx-action@v3
+        if: matrix.target == 'docker'
 
       - uses: docker/login-action@v3
+        if: matrix.target == 'docker'
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
       - uses: docker/build-push-action@v6
+        if: matrix.target == 'docker'
         with:
           context: .
           file: docker/Dockerfile
           push: true
           tags: |
             ghcr.io/${{ github.repository }}:latest
-            ghcr.io/${{ github.repository }}:${{ needs.version.outputs.tag }}
+            ghcr.io/${{ github.repository }}:${{ needs.changes.outputs.tag }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
   update-manifests:
     name: Update Manifests
-    needs: [version, cargo, docker]
+    needs: [changes, build]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -144,7 +143,7 @@ jobs:
       - name: Update version in Cargo.toml
         run: |
           CURRENT=$(grep '^version' Cargo.toml | head -1 | sed 's/.*"\(.*\)"/\1/')
-          NEW="${{ needs.version.outputs.version }}"
+          NEW="${{ needs.changes.outputs.version }}"
           if [ "$CURRENT" != "$NEW" ]; then
             sed -i "0,/^version = \"${CURRENT}\"/s//version = \"${NEW}\"/" Cargo.toml
             cargo generate-lockfile
@@ -157,15 +156,15 @@ jobs:
 
           if ! git diff --quiet; then
             git add Cargo.toml Cargo.lock
-            git commit -m "release: ${{ needs.version.outputs.tag }} [skip ci]"
+            git commit -m "release: ${{ needs.changes.outputs.tag }} [skip ci]"
           fi
 
-          git tag "${{ needs.version.outputs.tag }}"
+          git tag "${{ needs.changes.outputs.tag }}"
           git push origin main --tags
 
   release:
     name: Release
-    needs: [version, cargo, update-manifests]
+    needs: [changes, build, update-manifests]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -183,8 +182,8 @@ jobs:
           mv artifacts/deskctl artifacts/deskctl-linux-x86_64
           cd artifacts && sha256sum deskctl-linux-x86_64 > checksums.txt && cd ..
 
-          gh release create "${{ needs.version.outputs.tag }}" \
-            --title "${{ needs.version.outputs.tag }}" \
+          gh release create "${{ needs.changes.outputs.tag }}" \
+            --title "${{ needs.changes.outputs.tag }}" \
             --generate-notes \
             artifacts/deskctl-linux-x86_64 \
             artifacts/checksums.txt
