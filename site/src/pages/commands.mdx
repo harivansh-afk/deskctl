@@ -1,0 +1,176 @@
+---
+layout: ../layouts/DocLayout.astro
+title: Commands
+toc: true
+---
+
+# Commands
+
+## Snapshot
+
+Capture a screenshot and get the window tree:
+
+```sh
+deskctl snapshot
+deskctl snapshot --annotate
+```
+
+With `--annotate`, colored bounding boxes and `@wN` labels are drawn on the screenshot. Each window gets a unique color from an 8-color palette. Minimized windows are skipped.
+
+The screenshot is saved to `/tmp/deskctl-{timestamp}.png`.
+
+## Click
+
+Click the center of a window by ref, or click exact coordinates:
+
+```sh
+deskctl click @w1
+deskctl click 960,540
+```
+
+## Double click
+
+```sh
+deskctl dblclick @w1
+deskctl dblclick 500,300
+```
+
+## Type
+
+Type a string into the focused window:
+
+```sh
+deskctl type "hello world"
+```
+
+## Press
+
+Press a single key:
+
+```sh
+deskctl press enter
+deskctl press tab
+deskctl press escape
+```
+
+Supported key names: `enter`, `tab`, `escape`, `backspace`, `delete`, `space`, `up`, `down`, `left`, `right`, `home`, `end`, `pageup`, `pagedown`, `f1`-`f12`, or any single character.
+
+## Hotkey
+
+Send a key combination. List modifier keys first, then the target key:
+
+```sh
+deskctl hotkey ctrl c
+deskctl hotkey ctrl shift t
+deskctl hotkey alt f4
+```
+
+Modifier names: `ctrl`, `alt`, `shift`, `super` (also `meta` or `win`).
+
+## Mouse move
+
+Move the cursor to absolute coordinates:
+
+```sh
+deskctl mouse move 100 200
+```
+
+## Mouse scroll
+
+Scroll the mouse wheel. Positive values scroll down, negative scroll up:
+
+```sh
+deskctl mouse scroll 3
+deskctl mouse scroll -5
+deskctl mouse scroll 3 --axis horizontal
+```
+
+## Mouse drag
+
+Drag from one position to another:
+
+```sh
+deskctl mouse drag 100 200 500 600
+```
+
+## Focus
+
+Focus a window by ref or by name (case-insensitive substring match):
+
+```sh
+deskctl focus @w1
+deskctl focus "firefox"
+```
+
+## Close
+
+Close a window gracefully:
+
+```sh
+deskctl close @w2
+deskctl close "terminal"
+```
+
+## Move window
+
+Move a window to an absolute position:
+
+```sh
+deskctl move-window @w1 0 0
+deskctl move-window "firefox" 100 100
+```
+
+## Resize window
+
+Resize a window:
+
+```sh
+deskctl resize-window @w1 1280 720
+```
+
+## List windows
+
+List all windows without taking a screenshot:
+
+```sh
+deskctl list-windows
+```
+
+## Get screen size
+
+```sh
+deskctl get-screen-size
+```
+
+## Get mouse position
+
+```sh
+deskctl get-mouse-position
+```
+
+## Screenshot
+
+Take a screenshot without the window tree. Optionally specify a save path:
+
+```sh
+deskctl screenshot
+deskctl screenshot /tmp/my-screenshot.png
+deskctl screenshot --annotate
+```
+
+## Launch
+
+Launch an application:
+
+```sh
+deskctl launch firefox
+deskctl launch code --args /path/to/project
+```
+
+## Global options
+
+| Flag | Env | Description |
+|------|-----|-------------|
+| `--json` | | Output as JSON |
+| `--socket <path>` | `DESKCTL_SOCKET` | Path to daemon Unix socket |
+| `--session <name>` | | Session name for multiple daemons (default: `default`) |

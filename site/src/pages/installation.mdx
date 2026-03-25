@@ -1,6 +1,7 @@
 ---
 layout: ../layouts/DocLayout.astro
 title: Installation
+toc: true
 ---
 
 # Installation
@@ -11,9 +12,17 @@ title: Installation
 cargo install deskctl
 ```
 
-## Docker build
+## From source
 
-Build a Linux binary with Docker:
+```sh
+git clone https://github.com/harivansh-afk/deskctl
+cd deskctl
+cargo build --release
+```
+
+## Docker (cross-compile for Linux)
+
+Build a static Linux binary from any platform:
 
 ```sh
 docker compose -f docker/docker-compose.yml run --rm build
@@ -21,25 +30,19 @@ docker compose -f docker/docker-compose.yml run --rm build
 
 This writes `dist/deskctl-linux-x86_64`.
 
-## From source
-
-```sh
-git clone https://github.com/harivansh-afk/deskctl
-cd deskctl
-cargo build
-```
-
 ## Deploy to a remote machine
 
-Copy the binary to an SSH machine:
+Copy the binary over SSH when `scp` is not available:
 
 ```sh
-ssh -p 443 deskctl@ssh.agentcomputer.ai 'cat > ~/deskctl && chmod +x ~/deskctl' < dist/deskctl-linux-x86_64
+ssh -p 443 user@host 'cat > ~/deskctl && chmod +x ~/deskctl' < dist/deskctl-linux-x86_64
 ```
 
-## Runtime requirements
+## Requirements
 
-- Linux with X11 session
-- `DISPLAY` environment variable set
+- Linux with an active X11 session
+- `DISPLAY` environment variable set (e.g. `DISPLAY=:1`)
 - `XDG_SESSION_TYPE=x11`
-- A window manager exposing standard EWMH properties
+- A window manager that exposes EWMH properties (`_NET_CLIENT_LIST_STACKING`, `_NET_ACTIVE_WINDOW`)
+
+No extra native libraries are needed beyond the standard glibc runtime (`libc`, `libm`, `libgcc_s`).
