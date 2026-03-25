@@ -1,0 +1,115 @@
+---
+import "../styles/base.css";
+import type { MarkdownHeading } from "astro";
+const fm = Astro.props.frontmatter || Astro.props;
+const title = fm.title;
+const description = fm.description || "desktop control for AI agents";
+const toc = fm.toc ?? false;
+const headings: MarkdownHeading[] = Astro.props.headings ?? [];
+const isIndex =
+  Astro.url.pathname === "/" || Astro.url.pathname === "/index.html";
+const h2s = headings.filter((h) => h.depth === 2);
+
+function formatTocText(text: string): string {
+  if (!text.includes(" ") && /[-.]/.test(text)) {
+    return `<code>${text}</code>`;
+  }
+  return text.replace(/\(([^)]+)\)/g, "(<code>$1</code>)");
+}
+---
+
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="description" content={description} />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <title>{title ? `${title} — deskctl` : "deskctl"}</title>
+  </head>
+  <body>
+    {
+      !isIndex && (
+        <nav>
+          <a class="title" href="/">
+            deskctl
+          </a>
+          <span class="sep">/</span>
+          <a href={Astro.url.pathname}>{title}</a>
+        </nav>
+      )
+    }
+
+    {
+      toc && (
+        <aside class="toc-nav">
+          <ul>
+            {h2s.map((h) => (
+              <li>
+                <a href={`#${h.slug}`} set:html={formatTocText(h.text)} />
+              </li>
+            ))}
+          </ul>
+        </aside>
+      )
+    }
+
+    <main>
+      <slot />
+    </main>
+
+    <script>
+      const links = document.querySelectorAll(".toc-nav a");
+      if (links.length) {
+        const ids = Array.from(links).map((a) =>
+          a.getAttribute("href")!.slice(1),
+        );
+        const sections = ids
+          .map((id) => document.getElementById(id))
+          .filter(Boolean) as HTMLElement[];
+
+        let clickLock = false;
+        let scrollTimer: number;
+
+        function activate(id: string) {
+          links.forEach((a) => {
+            a.classList.toggle("active", a.getAttribute("href") === `#${id}`);
+          });
+        }
+
+        links.forEach((a) => {
+          a.addEventListener("click", () => {
+            activate(a.getAttribute("href")!.slice(1));
+            clickLock = true;
+          });
+        });
+
+        const observer = new IntersectionObserver(
+          (entries) => {
+            if (clickLock) return;
+            for (const entry of entries) {
+              if (entry.isIntersecting) {
+                activate(entry.target.id);
+                break;
+              }
+            }
+          },
+          { rootMargin: "0px 0px -60% 0px" },
+        );
+
+        sections.forEach((s) => observer.observe(s));
+
+        window.addEventListener(
+          "scroll",
+          () => {
+            clearTimeout(scrollTimer);
+            scrollTimer = window.setTimeout(() => {
+              clickLock = false;
+            }, 150);
+          },
+          { passive: true },
+        );
+      }
+    </script>
+  </body>
+</html>
