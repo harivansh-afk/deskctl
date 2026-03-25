@@ -126,6 +126,12 @@ jobs:
             NEW="${MAJOR}.${MINOR}.${NEW_PATCH}"
           fi
 
+          # Ensure the computed version does not already have a tag
+          while git rev-parse "v${NEW}" >/dev/null 2>&1; do
+            IFS='.' read -r MAJOR MINOR PATCH <<< "$NEW"
+            NEW="${MAJOR}.${MINOR}.$((PATCH + 1))"
+          done
+
           echo "version=${NEW}" >> "$GITHUB_OUTPUT"
           echo "tag=v${NEW}" >> "$GITHUB_OUTPUT"
 
@@ -223,7 +229,9 @@ jobs:
             git commit -m "release: ${{ needs.changes.outputs.tag }} [skip ci]"
           fi
 
-          git tag "${{ needs.changes.outputs.tag }}"
+          if ! git rev-parse "${{ needs.changes.outputs.tag }}" >/dev/null 2>&1; then
+            git tag "${{ needs.changes.outputs.tag }}"
+          fi
           git push origin main --tags
 
   release:
