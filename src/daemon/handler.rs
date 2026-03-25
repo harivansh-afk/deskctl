@@ -20,6 +20,11 @@ pub async fn handle_request(
         "mouse-move" => handle_mouse_move(request, state).await,
         "mouse-scroll" => handle_mouse_scroll(request, state).await,
         "mouse-drag" => handle_mouse_drag(request, state).await,
+        "focus" => handle_window_action(request, state, "focus").await,
+        "close" => handle_window_action(request, state, "close").await,
+        "move-window" => handle_move_window(request, state).await,
+        "resize-window" => handle_resize_window(request, state).await,
+        "list-windows" => handle_list_windows(state).await,
         action => Response::err(format!("Unknown action: {action}")),
     }
 }
@@ -252,6 +257,118 @@ async fn handle_mouse_drag(
             }
         })),
         Err(e) => Response::err(format!("Drag failed: {e}")),
+    }
+}
+
+async fn handle_window_action(
+    request: &Request,
+    state: &Arc<Mutex<DaemonState>>,
+    action: &str,
+) -> Response {
+    let selector = match request.extra.get("selector").and_then(|v| v.as_str()) {
+        Some(s) => s.to_string(),
+        None => return Response::err("Missing 'selector' field"),
+    };
+
+    let mut state = state.lock().await;
+
+    let entry = match state.ref_map.resolve(&selector) {
+        Some(e) => e.clone(),
+        None => return Response::err(format!("Could not resolve window: {selector}")),
+    };
+
+    let result = match action {
+        "focus" => state.backend.focus_window(entry.xcb_id),
+        "close" => state.backend.close_window(entry.xcb_id),
+        _ => unreachable!(),
+    };
+
+    match result {
+        Ok(()) => Response::ok(serde_json::json!({
+            "action": action,
+            "window": entry.title,
+            "xcb_id": entry.xcb_id,
+        })),
+        Err(e) => Response::err(format!("{action} failed: {e}")),
+    }
+}
+
+async fn handle_move_window(
+    request: &Request,
+    state: &Arc<Mutex<DaemonState>>,
+) -> Response {
+    let selector = match request.extra.get("selector").and_then(|v| v.as_str()) {
+        Some(s) => s.to_string(),
+        None => return Response::err("Missing 'selector' field"),
+    };
+    let x = request.extra.get("x").and_then(|v| v.as_i64()).unwrap_or(0) as i32;
+    let y = request.extra.get("y").and_then(|v| v.as_i64()).unwrap_or(0) as i32;
+
+    let mut state = state.lock().await;
+    let entry = match state.ref_map.resolve(&selector) {
+        Some(e) => e.clone(),
+        None => return Response::err(format!("Could not resolve window: {selector}")),
+    };
+
+    match state.backend.move_window(entry.xcb_id, x, y) {
+        Ok(()) => Response::ok(serde_json::json!({
+            "moved": entry.title, "x": x, "y": y
+        })),
+        Err(e) => Response::err(format!("Move failed: {e}")),
+    }
+}
+
+async fn handle_resize_window(
+    request: &Request,
+    state: &Arc<Mutex<DaemonState>>,
+) -> Response {
+    let selector = match request.extra.get("selector").and_then(|v| v.as_str()) {
+        Some(s) => s.to_string(),
+        None => return Response::err("Missing 'selector' field"),
+    };
+    let w = request.extra.get("w").and_then(|v| v.as_u64()).unwrap_or(800) as u32;
+    let h = request.extra.get("h").and_then(|v| v.as_u64()).unwrap_or(600) as u32;
+
+    let mut state = state.lock().await;
+    let entry = match state.ref_map.resolve(&selector) {
+        Some(e) => e.clone(),
+        None => return Response::err(format!("Could not resolve window: {selector}")),
+    };
+
+    match state.backend.resize_window(entry.xcb_id, w, h) {
+        Ok(()) => Response::ok(serde_json::json!({
+            "resized": entry.title, "width": w, "height": h
+        })),
+        Err(e) => Response::err(format!("Resize failed: {e}")),
+    }
+}
+
+async fn handle_list_windows(
+    state: &Arc<Mutex<DaemonState>>,
+) -> Response {
+    let mut state = state.lock().await;
+    // Re-run snapshot without screenshot, just to get current window list
+    match state.backend.snapshot(false) {
+        Ok(snapshot) => {
+            // Update ref map with fresh data
+            state.ref_map.clear();
+            for win in &snapshot.windows {
+                state.ref_map.insert(RefEntry {
+                    xcb_id: win.xcb_id,
+                    app_class: win.app_name.clone(),
+                    title: win.title.clone(),
+                    pid: 0,
+                    x: win.x,
+                    y: win.y,
+                    width: win.width,
+                    height: win.height,
+                    focused: win.focused,
+                    minimized: win.minimized,
+                });
+            }
+            Response::ok(serde_json::json!({"windows": snapshot.windows}))
+        }
+        Err(e) => Response::err(format!("List windows failed: {e}")),
     }
 }
 

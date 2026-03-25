@@ -691,6 +691,7 @@ dependencies = [
  "serde_json",
  "tokio",
  "uuid",
+ "x11rb",
  "xcap",
 ]
 

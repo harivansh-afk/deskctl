@@ -2,19 +2,30 @@ use anyhow::{Context, Result};
 use enigo::{
     Axis, Button, Coordinate, Direction, Enigo, Key, Keyboard, Mouse, Settings,
 };
+use x11rb::connection::Connection;
+use x11rb::protocol::xproto::{
+    ClientMessageEvent, ConfigureWindowAux, ConnectionExt as XprotoConnectionExt,
+    EventMask,
+};
+use x11rb::rust_connection::RustConnection;
 
 use super::annotate::annotate_screenshot;
 use crate::core::types::{Snapshot, WindowInfo};
 
 pub struct X11Backend {
     enigo: Enigo,
+    conn: RustConnection,
+    root: u32,
 }
 
 impl X11Backend {
     pub fn new() -> Result<Self> {
         let enigo = Enigo::new(&Settings::default())
             .map_err(|e| anyhow::anyhow!("Failed to initialize enigo: {e}"))?;
-        Ok(Self { enigo })
+        let (conn, screen_num) = x11rb::connect(None)
+            .context("Failed to connect to X11 server")?;
+        let root = conn.setup().roots[screen_num].root;
+        Ok(Self { enigo, conn, root })
     }
 }
 
@@ -91,21 +102,78 @@ impl super::DesktopBackend for X11Backend {
         })
     }
 
-    // Phase 5: window management (stub)
-    fn focus_window(&mut self, _xcb_id: u32) -> Result<()> {
-        anyhow::bail!("Window management not yet implemented (Phase 5)")
+    fn focus_window(&mut self, xcb_id: u32) -> Result<()> {
+        // Use _NET_ACTIVE_WINDOW client message (avoids focus-stealing prevention)
+        let net_active = self
+            .conn
+            .intern_atom(false, b"_NET_ACTIVE_WINDOW")?
+            .reply()
+            .context("Failed to intern _NET_ACTIVE_WINDOW atom")?
+            .atom;
+
+        let event = ClientMessageEvent {
+            response_type: x11rb::protocol::xproto::CLIENT_MESSAGE_EVENT,
+            format: 32,
+            sequence: 0,
+            window: xcb_id,
+            type_: net_active,
+            data: x11rb::protocol::xproto::ClientMessageData::from([
+                2u32, 0, 0, 0, 0, // source=2 (pager), timestamp=0, currently_active=0
+            ]),
+        };
+
+        self.conn.send_event(
+            false,
+            self.root,
+            EventMask::SUBSTRUCTURE_REDIRECT | EventMask::SUBSTRUCTURE_NOTIFY,
+            event,
+        )?;
+        self.conn.flush().context("Failed to flush X11 connection")?;
+        Ok(())
     }
 
-    fn move_window(&mut self, _xcb_id: u32, _x: i32, _y: i32) -> Result<()> {
-        anyhow::bail!("Window management not yet implemented (Phase 5)")
+    fn move_window(&mut self, xcb_id: u32, x: i32, y: i32) -> Result<()> {
+        self.conn
+            .configure_window(xcb_id, &ConfigureWindowAux::new().x(x).y(y))?;
+        self.conn.flush().context("Failed to flush X11 connection")?;
+        Ok(())
     }
 
-    fn resize_window(&mut self, _xcb_id: u32, _w: u32, _h: u32) -> Result<()> {
-        anyhow::bail!("Window management not yet implemented (Phase 5)")
+    fn resize_window(&mut self, xcb_id: u32, w: u32, h: u32) -> Result<()> {
+        self.conn
+            .configure_window(xcb_id, &ConfigureWindowAux::new().width(w).height(h))?;
+        self.conn.flush().context("Failed to flush X11 connection")?;
+        Ok(())
     }
 
-    fn close_window(&mut self, _xcb_id: u32) -> Result<()> {
-        anyhow::bail!("Window management not yet implemented (Phase 5)")
+    fn close_window(&mut self, xcb_id: u32) -> Result<()> {
+        // Use _NET_CLOSE_WINDOW for graceful close (respects WM protocols)
+        let net_close = self
+            .conn
+            .intern_atom(false, b"_NET_CLOSE_WINDOW")?
+            .reply()
+            .context("Failed to intern _NET_CLOSE_WINDOW atom")?
+            .atom;
+
+        let event = ClientMessageEvent {
+            response_type: x11rb::protocol::xproto::CLIENT_MESSAGE_EVENT,
+            format: 32,
+            sequence: 0,
+            window: xcb_id,
+            type_: net_close,
+            data: x11rb::protocol::xproto::ClientMessageData::from([
+                0u32, 2, 0, 0, 0, // timestamp=0, source=2 (pager)
+            ]),
+        };
+
+        self.conn.send_event(
+            false,
+            self.root,
+            EventMask::SUBSTRUCTURE_REDIRECT | EventMask::SUBSTRUCTURE_NOTIFY,
+            event,
+        )?;
+        self.conn.flush().context("Failed to flush X11 connection")?;
+        Ok(())
     }
 
     // Phase 4: input simulation via enigo
