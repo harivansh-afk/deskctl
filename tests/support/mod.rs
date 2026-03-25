@@ -27,13 +27,9 @@ pub struct SessionEnvGuard {
 
 impl SessionEnvGuard {
     pub fn prepare() -> Option<Self> {
-        if std::env::var("DISPLAY")
+        let _display = std::env::var("DISPLAY")
             .ok()
-            .filter(|value| !value.is_empty())
-            .is_none()
-        {
-            return None;
-        }
+            .filter(|value| !value.is_empty())?;
 
         let old_session_type = std::env::var("XDG_SESSION_TYPE").ok();
         std::env::set_var("XDG_SESSION_TYPE", "x11");
