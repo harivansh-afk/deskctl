@@ -1,0 +1,45 @@
+---
+layout: ../layouts/DocLayout.astro
+title: Installation
+---
+
+# Installation
+
+## Cargo
+
+```sh
+cargo install deskctl
+```
+
+## Docker build
+
+Build a Linux binary with Docker:
+
+```sh
+docker compose -f docker/docker-compose.yml run --rm build
+```
+
+This writes `dist/deskctl-linux-x86_64`.
+
+## From source
+
+```sh
+git clone https://github.com/harivansh-afk/deskctl
+cd deskctl
+cargo build
+```
+
+## Deploy to a remote machine
+
+Copy the binary to an SSH machine:
+
+```sh
+ssh -p 443 deskctl@ssh.agentcomputer.ai 'cat > ~/deskctl && chmod +x ~/deskctl' < dist/deskctl-linux-x86_64
+```
+
+## Runtime requirements
+
+- Linux with X11 session
+- `DISPLAY` environment variable set
+- `XDG_SESSION_TYPE=x11`
+- A window manager exposing standard EWMH properties

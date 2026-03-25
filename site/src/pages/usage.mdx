@@ -1,0 +1,53 @@
+---
+layout: ../layouts/DocLayout.astro
+title: Usage
+toc: true
+---
+
+# Usage
+
+## Snapshot
+
+Capture the current desktop state:
+
+```sh
+deskctl snapshot
+```
+
+With annotations overlaid on windows:
+
+```sh
+deskctl --json snapshot --annotate
+```
+
+## Click
+
+Click a window by its annotation handle:
+
+```sh
+deskctl click @w1
+```
+
+## Type
+
+Type text into the focused window:
+
+```sh
+deskctl type "hello world"
+```
+
+## Focus
+
+Focus a window by name:
+
+```sh
+deskctl focus "firefox"
+```
+
+## JSON output
+
+Pass `--json` for machine-readable output, useful for agent integrations:
+
+```sh
+deskctl --json snapshot
+```
