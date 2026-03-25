@@ -14,8 +14,70 @@ permissions:
   packages: write
 
 jobs:
+  changes:
+    name: Detect Changes
+    runs-on: ubuntu-latest
+    outputs:
+      rust: ${{ steps.check.outputs.rust }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            rust:
+              - 'src/**'
+              - 'Cargo.toml'
+              - 'Cargo.lock'
+              - 'docker/**'
+
+      - name: Set outputs
+        id: check
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "rust=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "rust=${{ steps.filter.outputs.rust }}" >> "$GITHUB_OUTPUT"
+          fi
+
+  version:
+    name: Next Version
+    needs: changes
+    if: needs.changes.outputs.rust == 'true'
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.next.outputs.version }}
+      tag: ${{ steps.next.outputs.tag }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Calculate next version
+        id: next
+        run: |
+          BASE=$(grep '^version' Cargo.toml | head -1 | sed 's/.*"\(.*\)"/\1/')
+          IFS='.' read -r MAJOR MINOR PATCH <<< "$BASE"
+
+          LATEST=$(git tag -l "v${MAJOR}.${MINOR}.*" | sort -V | tail -1)
+
+          if [ -z "$LATEST" ]; then
+            NEW="$BASE"
+          else
+            LATEST_VER="${LATEST#v}"
+            IFS='.' read -r _ _ LATEST_PATCH <<< "$LATEST_VER"
+            NEW_PATCH=$((LATEST_PATCH + 1))
+            NEW="${MAJOR}.${MINOR}.${NEW_PATCH}"
+          fi
+
+          echo "version=${NEW}" >> "$GITHUB_OUTPUT"
+          echo "tag=v${NEW}" >> "$GITHUB_OUTPUT"
+
   cargo:
-    name: Cargo Build
+    name: Build and Test
+    needs: [changes, version]
+    if: needs.changes.outputs.rust == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -42,14 +104,12 @@ jobs:
           retention-days: 7
 
   docker:
-    name: Docker Build
+    name: Docker
+    needs: [changes, version, cargo]
+    if: needs.changes.outputs.rust == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-
-      - name: Get version
-        id: version
-        run: echo "version=$(grep '^version' Cargo.toml | head -1 | sed 's/.*"\(.*\)"/\1/')" >> "$GITHUB_OUTPUT"
 
       - uses: docker/setup-buildx-action@v3
 
@@ -66,47 +126,65 @@ jobs:
           push: true
           tags: |
             ghcr.io/${{ github.repository }}:latest
-            ghcr.io/${{ github.repository }}:v${{ steps.version.outputs.version }}
+            ghcr.io/${{ github.repository }}:${{ needs.version.outputs.tag }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
-  release:
-    name: Release
-    needs: [cargo, docker]
+  update-manifests:
+    name: Update Manifests
+    needs: [version, cargo, docker]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
-      - name: Get version
-        id: version
-        run: echo "version=$(grep '^version' Cargo.toml | head -1 | sed 's/.*"\(.*\)"/\1/')" >> "$GITHUB_OUTPUT"
+      - uses: dtolnay/rust-toolchain@stable
+
+      - name: Update version in Cargo.toml
+        run: |
+          CURRENT=$(grep '^version' Cargo.toml | head -1 | sed 's/.*"\(.*\)"/\1/')
+          NEW="${{ needs.version.outputs.version }}"
+          if [ "$CURRENT" != "$NEW" ]; then
+            sed -i "0,/^version = \"${CURRENT}\"/s//version = \"${NEW}\"/" Cargo.toml
+            cargo generate-lockfile
+          fi
+
+      - name: Commit, tag, and push
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          if ! git diff --quiet; then
+            git add Cargo.toml Cargo.lock
+            git commit -m "release: ${{ needs.version.outputs.tag }} [skip ci]"
+          fi
+
+          git tag "${{ needs.version.outputs.tag }}"
+          git push origin main --tags
+
+  release:
+    name: Release
+    needs: [version, cargo, update-manifests]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
 
       - uses: actions/download-artifact@v4
         with:
           name: deskctl-linux-x86_64
           path: artifacts/
 
-      - name: Prepare release assets
-        run: |
-          chmod +x artifacts/deskctl
-          mv artifacts/deskctl artifacts/deskctl-linux-x86_64
-
-      - name: Create or update release
+      - name: Create release
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          TAG="v${{ steps.version.outputs.version }}"
-          IMAGE="ghcr.io/${{ github.repository }}:${TAG}"
+          chmod +x artifacts/deskctl
+          mv artifacts/deskctl artifacts/deskctl-linux-x86_64
+          cd artifacts && sha256sum deskctl-linux-x86_64 > checksums.txt && cd ..
 
-          BODY="## Artifacts
-          - **Binary:** \`deskctl-linux-x86_64\` (attached)
-          - **Docker:** \`docker pull ${IMAGE}\`"
-
-          if gh release view "$TAG" &>/dev/null; then
-            gh release upload "$TAG" artifacts/deskctl-linux-x86_64 --clobber
-          else
-            gh release create "$TAG" \
-              --title "$TAG" \
-              --notes "${BODY}" \
-              artifacts/deskctl-linux-x86_64
-          fi
+          gh release create "${{ needs.version.outputs.tag }}" \
+            --title "${{ needs.version.outputs.tag }}" \
+            --generate-notes \
+            artifacts/deskctl-linux-x86_64 \
+            artifacts/checksums.txt
