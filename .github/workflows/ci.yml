@@ -1,5 +1,9 @@
 name: CI
 
+# Runners: uvacompute (https://uvacompute.com)
+# To enable, set the UVA_RUNNER repo variable to the correct runner label.
+# runs-on: ${{ vars.UVA_RUNNER || 'ubuntu-latest' }}
+
 on:
   push:
     branches: [main]
@@ -12,7 +16,7 @@ permissions:
 jobs:
   cargo:
     name: Cargo Build
-    runs-on: ${{ vars.UVA_RUNNER || 'ubuntu-latest' }}
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
 
@@ -39,7 +43,7 @@ jobs:
 
   docker:
     name: Docker Build
-    runs-on: ${{ vars.UVA_RUNNER || 'ubuntu-latest' }}
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
 
