@@ -6,10 +6,10 @@ use std::process::{Command, Stdio};
 use std::thread;
 use std::time::Duration;
 
-use anyhow::{Context, Result, bail};
+use anyhow::{bail, Context, Result};
 
 use crate::cli::GlobalOpts;
-use crate::core::doctor::{DoctorReport, run as run_doctor_report};
+use crate::core::doctor::{run as run_doctor_report, DoctorReport};
 use crate::core::paths::{pid_path_for_session, socket_dir, socket_path_for_session};
 use crate::core::protocol::{Request, Response};
 
@@ -95,7 +95,8 @@ fn send_request_over_stream(mut stream: UnixStream, request: &Request) -> Result
 }
 
 fn ping_daemon(opts: &GlobalOpts) -> Result<()> {
-    let response = send_request_over_stream(connect_socket(&socket_path(opts))?, &Request::new("ping"))?;
+    let response =
+        send_request_over_stream(connect_socket(&socket_path(opts))?, &Request::new("ping"))?;
     if response.success {
         Ok(())
     } else {
@@ -212,7 +213,9 @@ pub fn daemon_status(opts: &GlobalOpts) -> Result<()> {
     let path = socket_path(opts);
     match ping_daemon(opts) {
         Ok(()) => println!("Daemon running ({})", path.display()),
-        Err(_) if path.exists() => println!("Daemon socket exists but is unhealthy ({})", path.display()),
+        Err(_) if path.exists() => {
+            println!("Daemon socket exists but is unhealthy ({})", path.display())
+        }
         Err(_) => println!("Daemon not running"),
     }
     Ok(())
@@ -226,7 +229,11 @@ fn print_doctor_report(report: &DoctorReport, json_output: bool) -> Result<()> {
 
     println!(
         "deskctl doctor: {}",
-        if report.healthy { "healthy" } else { "issues found" }
+        if report.healthy {
+            "healthy"
+        } else {
+            "issues found"
+        }
     );
     for check in &report.checks {
         let status = if check.ok { "OK" } else { "FAIL" };

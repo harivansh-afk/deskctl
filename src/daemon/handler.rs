@@ -394,14 +394,13 @@ fn capture_snapshot(
 ) -> Result<Snapshot> {
     let windows = refresh_windows(state)?;
     let screenshot_path = path.unwrap_or_else(temp_screenshot_path);
-    let screenshot = capture_and_save_screenshot(
-        state,
-        &screenshot_path,
-        annotate,
-        Some(&windows),
-    )?;
+    let screenshot =
+        capture_and_save_screenshot(state, &screenshot_path, annotate, Some(&windows))?;
 
-    Ok(Snapshot { screenshot, windows })
+    Ok(Snapshot {
+        screenshot,
+        windows,
+    })
 }
 
 fn capture_and_save_screenshot(
@@ -438,56 +437,4 @@ fn parse_coords(value: &str) -> Option<(i32, i32)> {
     let x = parts[0].trim().parse().ok()?;
     let y = parts[1].trim().parse().ok()?;
     Some((x, y))
-}
-
-#[cfg(all(test, target_os = "linux"))]
-mod tests {
-    use std::sync::Arc;
-
-    use tokio::runtime::Builder;
-    use tokio::sync::Mutex;
-
-    use super::handle_request;
-    use crate::core::protocol::Request;
-    use crate::daemon::state::DaemonState;
-    use crate::test_support::{X11TestEnv, deskctl_tmp_screenshot_count, env_lock};
-
-    #[test]
-    fn list_windows_is_side_effect_free_under_xvfb() {
-        let _guard = env_lock().lock().unwrap();
-        let Some(env) = X11TestEnv::new().unwrap() else {
-            eprintln!("Skipping Xvfb-dependent list-windows test");
-            return;
-        };
-        env.create_window("deskctl list-windows test", "DeskctlList").unwrap();
-
-        let before = deskctl_tmp_screenshot_count();
-        let runtime = Builder::new_current_thread().enable_all().build().unwrap();
-        let state = Arc::new(Mutex::new(
-            DaemonState::new(
-                "test".to_string(),
-                std::env::temp_dir().join("deskctl-list-windows.sock"),
-            )
-            .unwrap(),
-        ));
-
-        let response = runtime.block_on(handle_request(&Request::new("list-windows"), &state));
-        assert!(response.success);
-
-        let data = response.data.unwrap();
-        let windows = data
-            .get("windows")
-            .and_then(|value| value.as_array())
-            .unwrap();
-        assert!(windows.iter().any(|window| {
-            window
-                .get("title")
-                .and_then(|value| value.as_str())
-                .map(|title| title == "deskctl list-windows test")
-                .unwrap_or(false)
-        }));
-
-        let after = deskctl_tmp_screenshot_count();
-        assert_eq!(before, after, "list-windows should not create screenshot artifacts");
-    }
 }

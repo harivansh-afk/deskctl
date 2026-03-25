@@ -136,8 +136,12 @@ impl RefMap {
 
     /// Resolve a selector to the center coordinates of the window.
     pub fn resolve_to_center(&self, selector: &str) -> Option<(i32, i32)> {
-        self.resolve(selector)
-            .map(|entry| (entry.x + entry.width as i32 / 2, entry.y + entry.height as i32 / 2))
+        self.resolve(selector).map(|entry| {
+            (
+                entry.x + entry.width as i32 / 2,
+                entry.y + entry.height as i32 / 2,
+            )
+        })
     }
 
     pub fn entries(&self) -> impl Iterator<Item = (&String, &RefEntry)> {
@@ -182,7 +186,10 @@ mod tests {
 
         assert_eq!(refs.resolve("@w1").unwrap().window_id, window_id);
         assert_eq!(refs.resolve(&window_id).unwrap().backend_window_id, 42);
-        assert_eq!(refs.resolve(&format!("id={window_id}")).unwrap().title, "Editor");
+        assert_eq!(
+            refs.resolve(&format!("id={window_id}")).unwrap().title,
+            "Editor"
+        );
     }
 
     #[test]

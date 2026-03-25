@@ -1,4 +1,4 @@
-mod connection;
+pub mod connection;
 
 use anyhow::Result;
 use clap::{Args, Parser, Subcommand};
