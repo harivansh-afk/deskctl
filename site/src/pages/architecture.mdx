@@ -8,12 +8,71 @@ toc: true
 
 ## Client-daemon model
 
-deskctl uses a client-daemon architecture over Unix sockets with an NDJSON wire protocol. The daemon starts automatically on the first command and keeps the X11 connection alive for fast repeated calls.
+deskctl uses a client-daemon architecture over Unix sockets. The daemon starts automatically on the first command and keeps the X11 connection alive so repeated calls skip the connection setup overhead.
+
+Each command opens a new connection to the daemon, sends a single NDJSON request, reads one NDJSON response, and exits.
+
+## Wire protocol
+
+Requests and responses are newline-delimited JSON (NDJSON) over a Unix socket.
+
+**Request:**
+
+```json
+{"id": "r123456", "action": "snapshot", "annotate": true}
+```
+
+**Response:**
+
+```json
+{"success": true, "data": {"screenshot": "/tmp/deskctl-1234567890.png", "windows": [...]}}
+```
+
+Error responses include an `error` field:
+
+```json
+{"success": false, "error": "window not found: @w99"}
+```
+
+## Socket location
+
+The daemon socket is resolved in this order:
+
+1. `--socket` flag (highest priority)
+2. `$DESKCTL_SOCKET_DIR/{session}.sock`
+3. `$XDG_RUNTIME_DIR/deskctl/{session}.sock`
+4. `~/.deskctl/{session}.sock`
+
+PID files are stored alongside the socket.
+
+## Sessions
+
+Multiple isolated daemon instances can run simultaneously using the `--session` flag:
+
+```sh
+deskctl --session workspace1 snapshot
+deskctl --session workspace2 snapshot
+```
+
+Each session has its own socket, PID file, and window ref map.
 
 ## Backend design
 
-The backend is trait-based, making it straightforward to add support for different display servers. The current implementation targets X11 via `x11rb`.
+The core is built around a `DesktopBackend` trait. The current implementation uses `x11rb` for X11 protocol operations and `enigo` for input simulation.
 
-## Wayland support
+The trait-based design means adding Wayland support is a single trait implementation with no changes to the core, CLI, or daemon code.
 
-Coming soon. The trait-based backend design means adding Hyprland/Wayland support is a single trait implementation with zero refactoring of the core.
+## X11 integration
+
+Window detection uses EWMH properties:
+
+| Property | Purpose |
+|----------|---------|
+| `_NET_CLIENT_LIST_STACKING` | Window stacking order |
+| `_NET_ACTIVE_WINDOW` | Currently focused window |
+| `_NET_WM_NAME` | Window title (UTF-8) |
+| `_NET_WM_STATE_HIDDEN` | Minimized state |
+| `_NET_CLOSE_WINDOW` | Graceful close |
+| `WM_CLASS` | Application class/name |
+
+Falls back to `XQueryTree` if `_NET_CLIENT_LIST_STACKING` is unavailable.

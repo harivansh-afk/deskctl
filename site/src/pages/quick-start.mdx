@@ -1,0 +1,87 @@
+---
+layout: ../layouts/DocLayout.astro
+title: Quick start
+toc: true
+---
+
+# Quick start
+
+## Core workflow
+
+The typical agent loop is: snapshot the desktop, interpret the result, act on it.
+
+```sh
+# 1. see the desktop
+deskctl --json snapshot --annotate
+
+# 2. click a window by its ref
+deskctl click @w1
+
+# 3. type into the focused window
+deskctl type "hello world"
+
+# 4. press a key
+deskctl press enter
+```
+
+The `--annotate` flag draws colored bounding boxes and `@wN` labels on the screenshot so agents can visually identify windows.
+
+## Window refs
+
+Every `snapshot` assigns refs like `@w1`, `@w2`, etc. to each visible window, ordered top-to-bottom by stacking order. Use these refs anywhere a selector is expected:
+
+```sh
+deskctl click @w1
+deskctl focus @w3
+deskctl close @w2
+```
+
+You can also select windows by name (case-insensitive substring match):
+
+```sh
+deskctl focus "firefox"
+deskctl close "terminal"
+```
+
+## JSON output
+
+Pass `--json` for machine-readable output. This is the primary mode for agent integrations:
+
+```sh
+deskctl --json snapshot
+```
+
+```json
+{
+  "success": true,
+  "data": {
+    "screenshot": "/tmp/deskctl-1234567890.png",
+    "windows": [
+      {
+        "ref_id": "w1",
+        "xcb_id": 12345678,
+        "title": "Firefox",
+        "app_name": "firefox",
+        "x": 0,
+        "y": 0,
+        "width": 1920,
+        "height": 1080,
+        "focused": true,
+        "minimized": false
+      }
+    ]
+  }
+}
+```
+
+## Daemon lifecycle
+
+The daemon starts automatically on the first command. It keeps the X11 connection alive so repeated calls are fast. You do not need to manage it manually.
+
+```sh
+# check if the daemon is running
+deskctl daemon status
+
+# stop it explicitly
+deskctl daemon stop
+```
