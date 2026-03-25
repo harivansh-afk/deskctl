@@ -11,7 +11,7 @@ pub struct Snapshot {
 #[derive(Debug, Serialize, Deserialize)]
 pub struct WindowInfo {
     pub ref_id: String,
-    pub xcb_id: u32,
+    pub window_id: String,
     pub title: String,
     pub app_name: String,
     pub x: i32,

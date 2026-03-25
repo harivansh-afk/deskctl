@@ -1,13 +1,16 @@
 use std::sync::Arc;
+
+use anyhow::{Context, Result};
 use tokio::sync::Mutex;
 
 use super::state::DaemonState;
-use crate::backend::DesktopBackend;
+use crate::backend::annotate::annotate_screenshot;
 use crate::core::protocol::{Request, Response};
-use crate::core::refs::RefEntry;
+use crate::core::types::{Snapshot, WindowInfo};
 
 pub async fn handle_request(request: &Request, state: &Arc<Mutex<DaemonState>>) -> Response {
     match request.action.as_str() {
+        "ping" => Response::ok(serde_json::json!({"message": "pong"})),
         "snapshot" => handle_snapshot(request, state).await,
         "click" => handle_click(request, state).await,
         "dblclick" => handle_dblclick(request, state).await,
@@ -38,55 +41,33 @@ async fn handle_snapshot(request: &Request, state: &Arc<Mutex<DaemonState>>) -> 
         .unwrap_or(false);
 
     let mut state = state.lock().await;
-
-    match state.backend.snapshot(annotate) {
-        Ok(snapshot) => {
-            // Update ref map
-            state.ref_map.clear();
-            for win in &snapshot.windows {
-                state.ref_map.insert(RefEntry {
-                    xcb_id: win.xcb_id,
-                    app_class: win.app_name.clone(),
-                    title: win.title.clone(),
-                    pid: 0, // xcap doesn't expose PID directly in snapshot
-                    x: win.x,
-                    y: win.y,
-                    width: win.width,
-                    height: win.height,
-                    focused: win.focused,
-                    minimized: win.minimized,
-                });
-            }
-
-            Response::ok(serde_json::to_value(&snapshot).unwrap_or_default())
-        }
-        Err(e) => Response::err(format!("Snapshot failed: {e}")),
+    match capture_snapshot(&mut state, annotate, None) {
+        Ok(snapshot) => Response::ok(serde_json::to_value(&snapshot).unwrap_or_default()),
+        Err(error) => Response::err(format!("Snapshot failed: {error}")),
     }
 }
 
 async fn handle_click(request: &Request, state: &Arc<Mutex<DaemonState>>) -> Response {
     let selector = match request.extra.get("selector").and_then(|v| v.as_str()) {
-        Some(s) => s.to_string(),
+        Some(selector) => selector.to_string(),
         None => return Response::err("Missing 'selector' field"),
     };
 
     let mut state = state.lock().await;
 
-    // Try to parse as coordinates "x,y"
     if let Some((x, y)) = parse_coords(&selector) {
         return match state.backend.click(x, y) {
             Ok(()) => Response::ok(serde_json::json!({"clicked": {"x": x, "y": y}})),
-            Err(e) => Response::err(format!("Click failed: {e}")),
+            Err(error) => Response::err(format!("Click failed: {error}")),
         };
     }
 
-    // Resolve as window ref
     match state.ref_map.resolve_to_center(&selector) {
         Some((x, y)) => match state.backend.click(x, y) {
             Ok(()) => {
                 Response::ok(serde_json::json!({"clicked": {"x": x, "y": y, "ref": selector}}))
             }
-            Err(e) => Response::err(format!("Click failed: {e}")),
+            Err(error) => Response::err(format!("Click failed: {error}")),
         },
         None => Response::err(format!("Could not resolve selector: {selector}")),
     }
@@ -94,7 +75,7 @@ async fn handle_click(request: &Request, state: &Arc<Mutex<DaemonState>>) -> Res
 
 async fn handle_dblclick(request: &Request, state: &Arc<Mutex<DaemonState>>) -> Response {
     let selector = match request.extra.get("selector").and_then(|v| v.as_str()) {
-        Some(s) => s.to_string(),
+        Some(selector) => selector.to_string(),
         None => return Response::err("Missing 'selector' field"),
     };
 
@@ -103,7 +84,7 @@ async fn handle_dblclick(request: &Request, state: &Arc<Mutex<DaemonState>>) -> 
     if let Some((x, y)) = parse_coords(&selector) {
         return match state.backend.dblclick(x, y) {
             Ok(()) => Response::ok(serde_json::json!({"double_clicked": {"x": x, "y": y}})),
-            Err(e) => Response::err(format!("Double-click failed: {e}")),
+            Err(error) => Response::err(format!("Double-click failed: {error}")),
         };
     }
 
@@ -112,7 +93,7 @@ async fn handle_dblclick(request: &Request, state: &Arc<Mutex<DaemonState>>) -> 
             Ok(()) => Response::ok(
                 serde_json::json!({"double_clicked": {"x": x, "y": y, "ref": selector}}),
             ),
-            Err(e) => Response::err(format!("Double-click failed: {e}")),
+            Err(error) => Response::err(format!("Double-click failed: {error}")),
         },
         None => Response::err(format!("Could not resolve selector: {selector}")),
     }
@@ -120,70 +101,66 @@ async fn handle_dblclick(request: &Request, state: &Arc<Mutex<DaemonState>>) -> 
 
 async fn handle_type(request: &Request, state: &Arc<Mutex<DaemonState>>) -> Response {
     let text = match request.extra.get("text").and_then(|v| v.as_str()) {
-        Some(t) => t.to_string(),
+        Some(text) => text.to_string(),
         None => return Response::err("Missing 'text' field"),
     };
 
     let mut state = state.lock().await;
-
     match state.backend.type_text(&text) {
         Ok(()) => Response::ok(serde_json::json!({"typed": text})),
-        Err(e) => Response::err(format!("Type failed: {e}")),
+        Err(error) => Response::err(format!("Type failed: {error}")),
     }
 }
 
 async fn handle_press(request: &Request, state: &Arc<Mutex<DaemonState>>) -> Response {
     let key = match request.extra.get("key").and_then(|v| v.as_str()) {
-        Some(k) => k.to_string(),
+        Some(key) => key.to_string(),
         None => return Response::err("Missing 'key' field"),
     };
 
     let mut state = state.lock().await;
-
     match state.backend.press_key(&key) {
         Ok(()) => Response::ok(serde_json::json!({"pressed": key})),
-        Err(e) => Response::err(format!("Key press failed: {e}")),
+        Err(error) => Response::err(format!("Key press failed: {error}")),
     }
 }
 
 async fn handle_hotkey(request: &Request, state: &Arc<Mutex<DaemonState>>) -> Response {
     let keys: Vec<String> = match request.extra.get("keys").and_then(|v| v.as_array()) {
-        Some(arr) => arr
+        Some(keys) => keys
             .iter()
-            .filter_map(|v| v.as_str().map(|s| s.to_string()))
+            .filter_map(|value| value.as_str().map(|s| s.to_string()))
             .collect(),
         None => return Response::err("Missing 'keys' field"),
     };
 
     let mut state = state.lock().await;
-
     match state.backend.hotkey(&keys) {
         Ok(()) => Response::ok(serde_json::json!({"hotkey": keys})),
-        Err(e) => Response::err(format!("Hotkey failed: {e}")),
+        Err(error) => Response::err(format!("Hotkey failed: {error}")),
     }
 }
 
 async fn handle_mouse_move(request: &Request, state: &Arc<Mutex<DaemonState>>) -> Response {
     let x = match request.extra.get("x").and_then(|v| v.as_i64()) {
-        Some(v) => v as i32,
+        Some(value) => value as i32,
         None => return Response::err("Missing 'x' field"),
     };
     let y = match request.extra.get("y").and_then(|v| v.as_i64()) {
-        Some(v) => v as i32,
+        Some(value) => value as i32,
         None => return Response::err("Missing 'y' field"),
     };
 
     let mut state = state.lock().await;
-
     match state.backend.mouse_move(x, y) {
         Ok(()) => Response::ok(serde_json::json!({"moved": {"x": x, "y": y}})),
-        Err(e) => Response::err(format!("Mouse move failed: {e}")),
+        Err(error) => Response::err(format!("Mouse move failed: {error}")),
     }
 }
 
 async fn handle_mouse_scroll(request: &Request, state: &Arc<Mutex<DaemonState>>) -> Response {
     let amount = match request.extra.get("amount").and_then(|v| v.as_i64()) {
-        Some(v) => v as i32,
+        Some(value) => value as i32,
         None => return Response::err("Missing 'amount' field"),
     };
     let axis = request
@@ -194,33 +171,31 @@ async fn handle_mouse_scroll(request: &Request, state: &Arc<Mutex<DaemonState>>)
         .to_string();
 
     let mut state = state.lock().await;
-
     match state.backend.scroll(amount, &axis) {
         Ok(()) => Response::ok(serde_json::json!({"scrolled": {"amount": amount, "axis": axis}})),
-        Err(e) => Response::err(format!("Scroll failed: {e}")),
+        Err(error) => Response::err(format!("Scroll failed: {error}")),
     }
 }
 
 async fn handle_mouse_drag(request: &Request, state: &Arc<Mutex<DaemonState>>) -> Response {
     let x1 = match request.extra.get("x1").and_then(|v| v.as_i64()) {
-        Some(v) => v as i32,
+        Some(value) => value as i32,
         None => return Response::err("Missing 'x1' field"),
     };
     let y1 = match request.extra.get("y1").and_then(|v| v.as_i64()) {
-        Some(v) => v as i32,
+        Some(value) => value as i32,
         None => return Response::err("Missing 'y1' field"),
     };
     let x2 = match request.extra.get("x2").and_then(|v| v.as_i64()) {
-        Some(v) => v as i32,
+        Some(value) => value as i32,
         None => return Response::err("Missing 'x2' field"),
     };
     let y2 = match request.extra.get("y2").and_then(|v| v.as_i64()) {
-        Some(v) => v as i32,
+        Some(value) => value as i32,
         None => return Response::err("Missing 'y2' field"),
     };
 
     let mut state = state.lock().await;
-
     match state.backend.drag(x1, y1, x2, y2) {
         Ok(()) => Response::ok(serde_json::json!({
             "dragged": {
@@ -228,7 +203,7 @@ async fn handle_mouse_drag(request: &Request, state: &Arc<Mutex<DaemonState>>) -
                 "to": {"x": x2, "y": y2}
             }
         })),
-        Err(e) => Response::err(format!("Drag failed: {e}")),
+        Err(error) => Response::err(format!("Drag failed: {error}")),
     }
 }
 
@@ -238,20 +213,19 @@ async fn handle_window_action(
     action: &str,
 ) -> Response {
     let selector = match request.extra.get("selector").and_then(|v| v.as_str()) {
-        Some(s) => s.to_string(),
+        Some(selector) => selector.to_string(),
         None => return Response::err("Missing 'selector' field"),
     };
 
     let mut state = state.lock().await;
-
     let entry = match state.ref_map.resolve(&selector) {
-        Some(e) => e.clone(),
+        Some(entry) => entry.clone(),
         None => return Response::err(format!("Could not resolve window: {selector}")),
     };
 
     let result = match action {
-        "focus" => state.backend.focus_window(entry.xcb_id),
-        "close" => state.backend.close_window(entry.xcb_id),
+        "focus" => state.backend.focus_window(entry.backend_window_id),
+        "close" => state.backend.close_window(entry.backend_window_id),
         _ => unreachable!(),
     };
 
@@ -259,15 +233,15 @@ async fn handle_window_action(
         Ok(()) => Response::ok(serde_json::json!({
             "action": action,
             "window": entry.title,
-            "xcb_id": entry.xcb_id,
+            "window_id": entry.window_id,
         })),
-        Err(e) => Response::err(format!("{action} failed: {e}")),
+        Err(error) => Response::err(format!("{action} failed: {error}")),
     }
 }
 
 async fn handle_move_window(request: &Request, state: &Arc<Mutex<DaemonState>>) -> Response {
     let selector = match request.extra.get("selector").and_then(|v| v.as_str()) {
-        Some(s) => s.to_string(),
+        Some(selector) => selector.to_string(),
         None => return Response::err("Missing 'selector' field"),
     };
     let x = request.extra.get("x").and_then(|v| v.as_i64()).unwrap_or(0) as i32;
@@ -275,29 +249,32 @@ async fn handle_move_window(request: &Request, state: &Arc<Mutex<DaemonState>>) 
 
     let mut state = state.lock().await;
     let entry = match state.ref_map.resolve(&selector) {
-        Some(e) => e.clone(),
+        Some(entry) => entry.clone(),
         None => return Response::err(format!("Could not resolve window: {selector}")),
     };
 
-    match state.backend.move_window(entry.xcb_id, x, y) {
+    match state.backend.move_window(entry.backend_window_id, x, y) {
         Ok(()) => Response::ok(serde_json::json!({
-            "moved": entry.title, "x": x, "y": y
+            "moved": entry.title,
+            "window_id": entry.window_id,
+            "x": x,
+            "y": y,
         })),
-        Err(e) => Response::err(format!("Move failed: {e}")),
+        Err(error) => Response::err(format!("Move failed: {error}")),
     }
 }
 
 async fn handle_resize_window(request: &Request, state: &Arc<Mutex<DaemonState>>) -> Response {
     let selector = match request.extra.get("selector").and_then(|v| v.as_str()) {
-        Some(s) => s.to_string(),
+        Some(selector) => selector.to_string(),
         None => return Response::err("Missing 'selector' field"),
     };
-    let w = request
+    let width = request
         .extra
         .get("w")
         .and_then(|v| v.as_u64())
         .unwrap_or(800) as u32;
-    let h = request
+    let height = request
         .extra
         .get("h")
         .and_then(|v| v.as_u64())
@@ -305,50 +282,37 @@ async fn handle_resize_window(request: &Request, state: &Arc<Mutex<DaemonState>>
 
     let mut state = state.lock().await;
     let entry = match state.ref_map.resolve(&selector) {
-        Some(e) => e.clone(),
+        Some(entry) => entry.clone(),
         None => return Response::err(format!("Could not resolve window: {selector}")),
     };
 
-    match state.backend.resize_window(entry.xcb_id, w, h) {
+    match state
+        .backend
+        .resize_window(entry.backend_window_id, width, height)
+    {
         Ok(()) => Response::ok(serde_json::json!({
-            "resized": entry.title, "width": w, "height": h
+            "resized": entry.title,
+            "window_id": entry.window_id,
+            "width": width,
+            "height": height,
         })),
-        Err(e) => Response::err(format!("Resize failed: {e}")),
+        Err(error) => Response::err(format!("Resize failed: {error}")),
     }
 }
 
 async fn handle_list_windows(state: &Arc<Mutex<DaemonState>>) -> Response {
     let mut state = state.lock().await;
-    // Re-run snapshot without screenshot, just to get current window list
-    match state.backend.snapshot(false) {
-        Ok(snapshot) => {
-            // Update ref map with fresh data
-            state.ref_map.clear();
-            for win in &snapshot.windows {
-                state.ref_map.insert(RefEntry {
-                    xcb_id: win.xcb_id,
-                    app_class: win.app_name.clone(),
-                    title: win.title.clone(),
-                    pid: 0,
-                    x: win.x,
-                    y: win.y,
-                    width: win.width,
-                    height: win.height,
-                    focused: win.focused,
-                    minimized: win.minimized,
-                });
-            }
-            Response::ok(serde_json::json!({"windows": snapshot.windows}))
-        }
-        Err(e) => Response::err(format!("List windows failed: {e}")),
+    match refresh_windows(&mut state) {
+        Ok(windows) => Response::ok(serde_json::json!({"windows": windows})),
+        Err(error) => Response::err(format!("List windows failed: {error}")),
     }
 }
 
 async fn handle_get_screen_size(state: &Arc<Mutex<DaemonState>>) -> Response {
     let state = state.lock().await;
     match state.backend.screen_size() {
-        Ok((w, h)) => Response::ok(serde_json::json!({"width": w, "height": h})),
-        Err(e) => Response::err(format!("Failed: {e}")),
+        Ok((width, height)) => Response::ok(serde_json::json!({"width": width, "height": height})),
+        Err(error) => Response::err(format!("Failed: {error}")),
     }
 }
 
@@ -356,7 +320,7 @@ async fn handle_get_mouse_position(state: &Arc<Mutex<DaemonState>>) -> Response 
     let state = state.lock().await;
     match state.backend.mouse_position() {
         Ok((x, y)) => Response::ok(serde_json::json!({"x": x, "y": y})),
-        Err(e) => Response::err(format!("Failed: {e}")),
+        Err(error) => Response::err(format!("Failed: {error}")),
     }
 }
 
@@ -370,50 +334,160 @@ async fn handle_screenshot(request: &Request, state: &Arc<Mutex<DaemonState>>) -
         .extra
         .get("path")
         .and_then(|v| v.as_str())
-        .map(|s| s.to_string())
-        .unwrap_or_else(|| {
-            let ts = std::time::SystemTime::now()
-                .duration_since(std::time::UNIX_EPOCH)
-                .unwrap_or_default()
-                .as_millis();
-            format!("/tmp/deskctl-{ts}.png")
-        });
+        .map(|value| value.to_string())
+        .unwrap_or_else(temp_screenshot_path);
+
     let mut state = state.lock().await;
-    match state.backend.screenshot(&path, annotate) {
-        Ok(saved) => Response::ok(serde_json::json!({"screenshot": saved})),
-        Err(e) => Response::err(format!("Screenshot failed: {e}")),
+    let windows = if annotate {
+        match refresh_windows(&mut state) {
+            Ok(windows) => Some(windows),
+            Err(error) => return Response::err(format!("Screenshot failed: {error}")),
+        }
+    } else {
+        None
+    };
+
+    match capture_and_save_screenshot(&mut state, &path, annotate, windows.as_deref()) {
+        Ok(saved) => {
+            if let Some(windows) = windows {
+                Response::ok(serde_json::json!({"screenshot": saved, "windows": windows}))
+            } else {
+                Response::ok(serde_json::json!({"screenshot": saved}))
+            }
+        }
+        Err(error) => Response::err(format!("Screenshot failed: {error}")),
     }
 }
 
 async fn handle_launch(request: &Request, state: &Arc<Mutex<DaemonState>>) -> Response {
     let command = match request.extra.get("command").and_then(|v| v.as_str()) {
-        Some(c) => c.to_string(),
+        Some(command) => command.to_string(),
         None => return Response::err("Missing 'command' field"),
     };
     let args: Vec<String> = request
         .extra
         .get("args")
         .and_then(|v| v.as_array())
-        .map(|arr| {
-            arr.iter()
-                .filter_map(|v| v.as_str().map(String::from))
+        .map(|args| {
+            args.iter()
+                .filter_map(|value| value.as_str().map(String::from))
                 .collect()
         })
         .unwrap_or_default();
+
     let state = state.lock().await;
     match state.backend.launch(&command, &args) {
         Ok(pid) => Response::ok(serde_json::json!({"pid": pid, "command": command})),
-        Err(e) => Response::err(format!("Launch failed: {e}")),
+        Err(error) => Response::err(format!("Launch failed: {error}")),
     }
 }
 
-fn parse_coords(s: &str) -> Option<(i32, i32)> {
-    let parts: Vec<&str> = s.split(',').collect();
-    if parts.len() == 2 {
-        let x = parts[0].trim().parse().ok()?;
-        let y = parts[1].trim().parse().ok()?;
-        Some((x, y))
-    } else {
-        None
+fn refresh_windows(state: &mut DaemonState) -> Result<Vec<WindowInfo>> {
+    let windows = state.backend.list_windows()?;
+    Ok(state.ref_map.rebuild(&windows))
+}
+
+fn capture_snapshot(
+    state: &mut DaemonState,
+    annotate: bool,
+    path: Option<String>,
+) -> Result<Snapshot> {
+    let windows = refresh_windows(state)?;
+    let screenshot_path = path.unwrap_or_else(temp_screenshot_path);
+    let screenshot = capture_and_save_screenshot(
+        state,
+        &screenshot_path,
+        annotate,
+        Some(&windows),
+    )?;
+
+    Ok(Snapshot { screenshot, windows })
+}
+
+fn capture_and_save_screenshot(
+    state: &mut DaemonState,
+    path: &str,
+    annotate: bool,
+    windows: Option<&[WindowInfo]>,
+) -> Result<String> {
+    let mut image = state.backend.capture_screenshot()?;
+    if annotate {
+        let windows = windows.context("Annotated screenshots require current window data")?;
+        annotate_screenshot(&mut image, windows);
+    }
+    image
+        .save(path)
+        .with_context(|| format!("Failed to save screenshot to {path}"))?;
+    Ok(path.to_string())
+}
+
+fn temp_screenshot_path() -> String {
+    let timestamp = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_millis();
+    format!("/tmp/deskctl-{timestamp}.png")
+}
+
+fn parse_coords(value: &str) -> Option<(i32, i32)> {
+    let parts: Vec<&str> = value.split(',').collect();
+    if parts.len() != 2 {
+        return None;
+    }
+
+    let x = parts[0].trim().parse().ok()?;
+    let y = parts[1].trim().parse().ok()?;
+    Some((x, y))
+}
+
+#[cfg(all(test, target_os = "linux"))]
+mod tests {
+    use std::sync::Arc;
+
+    use tokio::runtime::Builder;
+    use tokio::sync::Mutex;
+
+    use super::handle_request;
+    use crate::core::protocol::Request;
+    use crate::daemon::state::DaemonState;
+    use crate::test_support::{X11TestEnv, deskctl_tmp_screenshot_count, env_lock};
+
+    #[test]
+    fn list_windows_is_side_effect_free_under_xvfb() {
+        let _guard = env_lock().lock().unwrap();
+        let Some(env) = X11TestEnv::new().unwrap() else {
+            eprintln!("Skipping Xvfb-dependent list-windows test");
+            return;
+        };
+        env.create_window("deskctl list-windows test", "DeskctlList").unwrap();
+
+        let before = deskctl_tmp_screenshot_count();
+        let runtime = Builder::new_current_thread().enable_all().build().unwrap();
+        let state = Arc::new(Mutex::new(
+            DaemonState::new(
+                "test".to_string(),
+                std::env::temp_dir().join("deskctl-list-windows.sock"),
+            )
+            .unwrap(),
+        ));
+
+        let response = runtime.block_on(handle_request(&Request::new("list-windows"), &state));
+        assert!(response.success);
+
+        let data = response.data.unwrap();
+        let windows = data
+            .get("windows")
+            .and_then(|value| value.as_array())
+            .unwrap();
+        assert!(windows.iter().any(|window| {
+            window
+                .get("title")
+                .and_then(|value| value.as_str())
+                .map(|title| title == "deskctl list-windows test")
+                .unwrap_or(false)
+        }));
+
+        let after = deskctl_tmp_screenshot_count();
+        assert_eq!(before, after, "list-windows should not create screenshot artifacts");
     }
 }

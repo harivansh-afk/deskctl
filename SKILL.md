@@ -60,6 +60,7 @@ deskctl resize-window @w1 800 600   # Resize window
 ### Utilities
 
 ```bash
+deskctl doctor                # Diagnose X11, screenshot, and daemon health
 deskctl get-screen-size       # Screen resolution
 deskctl get-mouse-position    # Current cursor position
 deskctl launch firefox        # Launch an application
@@ -86,7 +87,7 @@ After `snapshot` or `list-windows`, windows are assigned short refs:
 - `@w1` is the topmost (usually focused) window
 - `@w2`, `@w3`, etc. follow z-order (front to back)
 - Refs reset on each `snapshot` call
-- Use `--json` to see stable `xcb_id` for programmatic tracking
+- Use `--json` to see stable `window_id` values for programmatic tracking within the current daemon session
 
 ## Example Agent Workflow
 

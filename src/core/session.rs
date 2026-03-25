@@ -15,14 +15,14 @@ pub fn detect_session() -> Result<SessionType> {
                 bail!(
                     "No X11 session detected.\n\
                      XDG_SESSION_TYPE is not set and DISPLAY is not set.\n\
-                     deskctl requires an X11 session. Wayland support coming in v0.2."
+                     deskctl requires an X11 session."
                 );
             }
         }
         "wayland" => {
             bail!(
                 "Wayland session detected (XDG_SESSION_TYPE=wayland).\n\
-                 deskctl currently supports X11 only. Wayland/Hyprland support coming in v0.2."
+                 deskctl currently supports X11 only."
             );
         }
         other => {
