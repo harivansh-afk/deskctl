@@ -28,14 +28,16 @@ jobs:
 
       - uses: Swatinem/rust-cache@v2
 
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+          run_install: false
+
       - uses: actions/setup-node@v4
         with:
           node-version: 22
           cache: pnpm
           cache-dependency-path: site/pnpm-lock.yaml
-
-      - name: Enable corepack
-        run: corepack enable
 
       - name: Install site dependencies
         run: pnpm --dir site install --frozen-lockfile
