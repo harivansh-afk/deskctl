@@ -1,10 +1,10 @@
 ---
-name: desktop-ctl
-description: Desktop control CLI for AI agents - screenshot, click, type, window management on Linux X11
-allowed-tools: Bash(desktop-ctl:*)
+name: deskctl
+description: Desktop control CLI for AI agents 
+allowed-tools: Bash(deskctl:*)
 ---
 
-# desktop-ctl
+# deskctl
 
 Desktop control CLI for AI agents on Linux X11. Provides a unified interface for screenshots, mouse/keyboard input, and window management with compact `@wN` window references.
 
@@ -19,59 +19,59 @@ Desktop control CLI for AI agents on Linux X11. Provides a unified interface for
 ### See the Desktop
 
 ```bash
-desktop-ctl snapshot              # Screenshot + window tree with @wN refs
-desktop-ctl snapshot --annotate   # Screenshot with bounding boxes and labels
-desktop-ctl snapshot --json       # Structured JSON output
-desktop-ctl list-windows          # Window tree without screenshot
-desktop-ctl screenshot /tmp/s.png # Screenshot only (no window tree)
+deskctl snapshot              # Screenshot + window tree with @wN refs
+deskctl snapshot --annotate   # Screenshot with bounding boxes and labels
+deskctl snapshot --json       # Structured JSON output
+deskctl list-windows          # Window tree without screenshot
+deskctl screenshot /tmp/s.png # Screenshot only (no window tree)
 ```
 
 ### Click and Type
 
 ```bash
-desktop-ctl click @w1             # Click center of window @w1
-desktop-ctl click 500,300         # Click absolute coordinates
-desktop-ctl dblclick @w2          # Double-click window @w2
-desktop-ctl type "hello world"    # Type text into focused window
-desktop-ctl press enter           # Press a key
-desktop-ctl hotkey ctrl c         # Send Ctrl+C
-desktop-ctl hotkey ctrl shift t   # Send Ctrl+Shift+T
+deskctl click @w1             # Click center of window @w1
+deskctl click 500,300         # Click absolute coordinates
+deskctl dblclick @w2          # Double-click window @w2
+deskctl type "hello world"    # Type text into focused window
+deskctl press enter           # Press a key
+deskctl hotkey ctrl c         # Send Ctrl+C
+deskctl hotkey ctrl shift t   # Send Ctrl+Shift+T
 ```
 
 ### Mouse Control
 
 ```bash
-desktop-ctl mouse move 500 300    # Move cursor to coordinates
-desktop-ctl mouse scroll 3        # Scroll down 3 units
-desktop-ctl mouse scroll -3       # Scroll up 3 units
-desktop-ctl mouse drag 100 100 500 500  # Drag from (100,100) to (500,500)
+deskctl mouse move 500 300    # Move cursor to coordinates
+deskctl mouse scroll 3        # Scroll down 3 units
+deskctl mouse scroll -3       # Scroll up 3 units
+deskctl mouse drag 100 100 500 500  # Drag from (100,100) to (500,500)
 ```
 
 ### Window Management
 
 ```bash
-desktop-ctl focus @w2             # Focus window by ref
-desktop-ctl focus "firefox"       # Focus window by name (substring match)
-desktop-ctl close @w3             # Close window gracefully
-desktop-ctl move-window @w1 100 200     # Move window to position
-desktop-ctl resize-window @w1 800 600   # Resize window
+deskctl focus @w2             # Focus window by ref
+deskctl focus "firefox"       # Focus window by name (substring match)
+deskctl close @w3             # Close window gracefully
+deskctl move-window @w1 100 200     # Move window to position
+deskctl resize-window @w1 800 600   # Resize window
 ```
 
 ### Utilities
 
 ```bash
-desktop-ctl get-screen-size       # Screen resolution
-desktop-ctl get-mouse-position    # Current cursor position
-desktop-ctl launch firefox        # Launch an application
-desktop-ctl launch code -- --new-window  # Launch with arguments
+deskctl get-screen-size       # Screen resolution
+deskctl get-mouse-position    # Current cursor position
+deskctl launch firefox        # Launch an application
+deskctl launch code -- --new-window  # Launch with arguments
 ```
 
 ### Daemon
 
 ```bash
-desktop-ctl daemon start          # Start daemon manually
-desktop-ctl daemon stop           # Stop daemon
-desktop-ctl daemon status         # Check daemon status
+deskctl daemon start          # Start daemon manually
+deskctl daemon stop           # Stop daemon
+deskctl daemon status         # Check daemon status
 ```
 
 ## Global Options
@@ -92,18 +92,18 @@ After `snapshot` or `list-windows`, windows are assigned short refs:
 
 ```bash
 # 1. See what's on screen
-desktop-ctl snapshot --annotate
+deskctl snapshot --annotate
 
 # 2. Focus the browser
-desktop-ctl focus "firefox"
+deskctl focus "firefox"
 
 # 3. Navigate to a URL
-desktop-ctl hotkey ctrl l
-desktop-ctl type "https://example.com"
-desktop-ctl press enter
+deskctl hotkey ctrl l
+deskctl type "https://example.com"
+deskctl press enter
 
 # 4. Take a new snapshot to see the result
-desktop-ctl snapshot
+deskctl snapshot
 ```
 
 ## Key Names for press/hotkey
