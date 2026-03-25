@@ -2,3 +2,6 @@ target/
 tmp/
 .vercel
 secret/
+.claude/
+.codex/
+openspec/
