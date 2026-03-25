@@ -1,31 +1,34 @@
 use anyhow::{Context, Result};
+use enigo::{
+    Axis, Button, Coordinate, Direction, Enigo, Key, Keyboard, Mouse, Settings,
+};
 
-use crate::core::types::{Snapshot, WindowInfo};
 use super::annotate::annotate_screenshot;
+use crate::core::types::{Snapshot, WindowInfo};
 
 pub struct X11Backend {
-    // enigo and x11rb connections added in later phases
+    enigo: Enigo,
 }
 
 impl X11Backend {
     pub fn new() -> Result<Self> {
-        Ok(Self {})
+        let enigo = Enigo::new(&Settings::default())
+            .map_err(|e| anyhow::anyhow!("Failed to initialize enigo: {e}"))?;
+        Ok(Self { enigo })
     }
 }
 
 impl super::DesktopBackend for X11Backend {
     fn snapshot(&mut self, annotate: bool) -> Result<Snapshot> {
         // Get z-ordered window list via xcap (topmost first internally)
-        let windows = xcap::Window::all()
-            .context("Failed to enumerate windows")?;
+        let windows = xcap::Window::all().context("Failed to enumerate windows")?;
 
         // Get primary monitor for screenshot
-        let monitors = xcap::Monitor::all()
-            .context("Failed to enumerate monitors")?;
-        let monitor = monitors.into_iter().next()
-            .context("No monitor found")?;
+        let monitors = xcap::Monitor::all().context("Failed to enumerate monitors")?;
+        let monitor = monitors.into_iter().next().context("No monitor found")?;
 
-        let mut image = monitor.capture_image()
+        let mut image = monitor
+            .capture_image()
             .context("Failed to capture screenshot")?;
 
         // Build window info list
@@ -78,7 +81,8 @@ impl super::DesktopBackend for X11Backend {
             .unwrap_or_default()
             .as_millis();
         let screenshot_path = format!("/tmp/desktop-ctl-{timestamp}.png");
-        image.save(&screenshot_path)
+        image
+            .save(&screenshot_path)
             .context("Failed to save screenshot")?;
 
         Ok(Snapshot {
@@ -87,7 +91,7 @@ impl super::DesktopBackend for X11Backend {
         })
     }
 
-    // Stub implementations for methods added in later phases
+    // Phase 5: window management (stub)
     fn focus_window(&mut self, _xcb_id: u32) -> Result<()> {
         anyhow::bail!("Window management not yet implemented (Phase 5)")
     }
@@ -104,37 +108,119 @@ impl super::DesktopBackend for X11Backend {
         anyhow::bail!("Window management not yet implemented (Phase 5)")
     }
 
-    fn click(&mut self, _x: i32, _y: i32) -> Result<()> {
-        anyhow::bail!("Input simulation not yet implemented (Phase 4)")
+    // Phase 4: input simulation via enigo
+
+    fn click(&mut self, x: i32, y: i32) -> Result<()> {
+        self.enigo
+            .move_mouse(x, y, Coordinate::Abs)
+            .map_err(|e| anyhow::anyhow!("Mouse move failed: {e}"))?;
+        std::thread::sleep(std::time::Duration::from_millis(10));
+        self.enigo
+            .button(Button::Left, Direction::Click)
+            .map_err(|e| anyhow::anyhow!("Click failed: {e}"))?;
+        Ok(())
     }
 
-    fn dblclick(&mut self, _x: i32, _y: i32) -> Result<()> {
-        anyhow::bail!("Input simulation not yet implemented (Phase 4)")
+    fn dblclick(&mut self, x: i32, y: i32) -> Result<()> {
+        self.enigo
+            .move_mouse(x, y, Coordinate::Abs)
+            .map_err(|e| anyhow::anyhow!("Mouse move failed: {e}"))?;
+        std::thread::sleep(std::time::Duration::from_millis(10));
+        self.enigo
+            .button(Button::Left, Direction::Click)
+            .map_err(|e| anyhow::anyhow!("First click failed: {e}"))?;
+        std::thread::sleep(std::time::Duration::from_millis(50));
+        self.enigo
+            .button(Button::Left, Direction::Click)
+            .map_err(|e| anyhow::anyhow!("Second click failed: {e}"))?;
+        Ok(())
     }
 
-    fn type_text(&mut self, _text: &str) -> Result<()> {
-        anyhow::bail!("Input simulation not yet implemented (Phase 4)")
+    fn type_text(&mut self, text: &str) -> Result<()> {
+        self.enigo
+            .text(text)
+            .map_err(|e| anyhow::anyhow!("Type failed: {e}"))?;
+        Ok(())
     }
 
-    fn press_key(&mut self, _key: &str) -> Result<()> {
-        anyhow::bail!("Input simulation not yet implemented (Phase 4)")
+    fn press_key(&mut self, key: &str) -> Result<()> {
+        let k = parse_key(key)?;
+        self.enigo
+            .key(k, Direction::Click)
+            .map_err(|e| anyhow::anyhow!("Key press failed: {e}"))?;
+        Ok(())
     }
 
-    fn hotkey(&mut self, _keys: &[String]) -> Result<()> {
-        anyhow::bail!("Input simulation not yet implemented (Phase 4)")
+    fn hotkey(&mut self, keys: &[String]) -> Result<()> {
+        // Press all modifier keys, click the last key, release modifiers in reverse
+        let parsed: Vec<Key> = keys
+            .iter()
+            .map(|k| parse_key(k))
+            .collect::<Result<Vec<_>>>()?;
+
+        if parsed.is_empty() {
+            anyhow::bail!("No keys specified for hotkey");
+        }
+
+        let (modifiers, tail) = parsed.split_at(parsed.len() - 1);
+
+        for m in modifiers {
+            self.enigo
+                .key(*m, Direction::Press)
+                .map_err(|e| anyhow::anyhow!("Modifier press failed: {e}"))?;
+        }
+
+        self.enigo
+            .key(tail[0], Direction::Click)
+            .map_err(|e| anyhow::anyhow!("Key click failed: {e}"))?;
+
+        for m in modifiers.iter().rev() {
+            self.enigo
+                .key(*m, Direction::Release)
+                .map_err(|e| anyhow::anyhow!("Modifier release failed: {e}"))?;
+        }
+
+        Ok(())
     }
 
-    fn mouse_move(&mut self, _x: i32, _y: i32) -> Result<()> {
-        anyhow::bail!("Input simulation not yet implemented (Phase 4)")
+    fn mouse_move(&mut self, x: i32, y: i32) -> Result<()> {
+        self.enigo
+            .move_mouse(x, y, Coordinate::Abs)
+            .map_err(|e| anyhow::anyhow!("Mouse move failed: {e}"))?;
+        Ok(())
     }
 
-    fn scroll(&mut self, _amount: i32, _axis: &str) -> Result<()> {
-        anyhow::bail!("Input simulation not yet implemented (Phase 4)")
+    fn scroll(&mut self, amount: i32, axis: &str) -> Result<()> {
+        let ax = match axis {
+            "horizontal" | "h" => Axis::Horizontal,
+            _ => Axis::Vertical,
+        };
+        self.enigo
+            .scroll(amount, ax)
+            .map_err(|e| anyhow::anyhow!("Scroll failed: {e}"))?;
+        Ok(())
     }
 
-    fn drag(&mut self, _x1: i32, _y1: i32, _x2: i32, _y2: i32) -> Result<()> {
-        anyhow::bail!("Input simulation not yet implemented (Phase 4)")
+    fn drag(&mut self, x1: i32, y1: i32, x2: i32, y2: i32) -> Result<()> {
+        self.enigo
+            .move_mouse(x1, y1, Coordinate::Abs)
+            .map_err(|e| anyhow::anyhow!("Mouse move failed: {e}"))?;
+        std::thread::sleep(std::time::Duration::from_millis(10));
+        self.enigo
+            .button(Button::Left, Direction::Press)
+            .map_err(|e| anyhow::anyhow!("Button press failed: {e}"))?;
+        std::thread::sleep(std::time::Duration::from_millis(50));
+        self.enigo
+            .move_mouse(x2, y2, Coordinate::Abs)
+            .map_err(|e| anyhow::anyhow!("Mouse move to target failed: {e}"))?;
+        std::thread::sleep(std::time::Duration::from_millis(10));
+        self.enigo
+            .button(Button::Left, Direction::Release)
+            .map_err(|e| anyhow::anyhow!("Button release failed: {e}"))?;
+        Ok(())
     }
+
+    // Phase 6: utility stubs
 
     fn screen_size(&self) -> Result<(u32, u32)> {
         anyhow::bail!("Utility commands not yet implemented (Phase 6)")
@@ -150,5 +236,54 @@ impl super::DesktopBackend for X11Backend {
 
     fn launch(&self, _command: &str, _args: &[String]) -> Result<u32> {
         anyhow::bail!("Launch not yet implemented (Phase 6)")
+    }
+}
+
+fn parse_key(name: &str) -> Result<Key> {
+    match name.to_lowercase().as_str() {
+        // Modifiers
+        "ctrl" | "control" => Ok(Key::Control),
+        "alt" => Ok(Key::Alt),
+        "shift" => Ok(Key::Shift),
+        "super" | "meta" | "win" => Ok(Key::Meta),
+
+        // Navigation / editing
+        "enter" | "return" => Ok(Key::Return),
+        "tab" => Ok(Key::Tab),
+        "escape" | "esc" => Ok(Key::Escape),
+        "backspace" => Ok(Key::Backspace),
+        "delete" | "del" => Ok(Key::Delete),
+        "space" => Ok(Key::Space),
+
+        // Arrow keys
+        "up" => Ok(Key::UpArrow),
+        "down" => Ok(Key::DownArrow),
+        "left" => Ok(Key::LeftArrow),
+        "right" => Ok(Key::RightArrow),
+
+        // Page navigation
+        "home" => Ok(Key::Home),
+        "end" => Ok(Key::End),
+        "pageup" => Ok(Key::PageUp),
+        "pagedown" => Ok(Key::PageDown),
+
+        // Function keys
+        "f1" => Ok(Key::F1),
+        "f2" => Ok(Key::F2),
+        "f3" => Ok(Key::F3),
+        "f4" => Ok(Key::F4),
+        "f5" => Ok(Key::F5),
+        "f6" => Ok(Key::F6),
+        "f7" => Ok(Key::F7),
+        "f8" => Ok(Key::F8),
+        "f9" => Ok(Key::F9),
+        "f10" => Ok(Key::F10),
+        "f11" => Ok(Key::F11),
+        "f12" => Ok(Key::F12),
+
+        // Single character - map to Unicode key
+        s if s.len() == 1 => Ok(Key::Unicode(s.chars().next().unwrap())),
+
+        other => anyhow::bail!("Unknown key: {other}"),
     }
 }

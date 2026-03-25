@@ -19,3 +19,4 @@ xcap = "0.8"
 image = { version = "0.25", features = ["png"] }
 imageproc = "0.26"
 ab_glyph = "0.2"
+enigo = "0.6"
