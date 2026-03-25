@@ -1,3 +1,4 @@
+pub mod annotate;
 pub mod x11;
 
 use anyhow::Result;

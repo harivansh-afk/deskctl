@@ -1,6 +1,7 @@
 use anyhow::{Context, Result};
 
 use crate::core::types::{Snapshot, WindowInfo};
+use super::annotate::annotate_screenshot;
 
 pub struct X11Backend {
     // enigo and x11rb connections added in later phases
@@ -13,7 +14,7 @@ impl X11Backend {
 }
 
 impl super::DesktopBackend for X11Backend {
-    fn snapshot(&mut self, _annotate: bool) -> Result<Snapshot> {
+    fn snapshot(&mut self, annotate: bool) -> Result<Snapshot> {
         // Get z-ordered window list via xcap (topmost first internally)
         let windows = xcap::Window::all()
             .context("Failed to enumerate windows")?;
@@ -24,17 +25,8 @@ impl super::DesktopBackend for X11Backend {
         let monitor = monitors.into_iter().next()
             .context("No monitor found")?;
 
-        let image = monitor.capture_image()
+        let mut image = monitor.capture_image()
             .context("Failed to capture screenshot")?;
-
-        // Save screenshot
-        let timestamp = std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .unwrap_or_default()
-            .as_millis();
-        let screenshot_path = format!("/tmp/desktop-ctl-{timestamp}.png");
-        image.save(&screenshot_path)
-            .context("Failed to save screenshot")?;
 
         // Build window info list
         let mut window_infos = Vec::new();
@@ -74,6 +66,20 @@ impl super::DesktopBackend for X11Backend {
                 minimized,
             });
         }
+
+        // Annotate if requested - draw bounding boxes and @wN labels
+        if annotate {
+            annotate_screenshot(&mut image, &window_infos);
+        }
+
+        // Save screenshot
+        let timestamp = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_millis();
+        let screenshot_path = format!("/tmp/desktop-ctl-{timestamp}.png");
+        image.save(&screenshot_path)
+            .context("Failed to save screenshot")?;
 
         Ok(Snapshot {
             screenshot: screenshot_path,
