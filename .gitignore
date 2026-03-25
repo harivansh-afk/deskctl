@@ -1,3 +1,2 @@
-
-# Riptide artifacts (cloud-synced)
-.humanlayer/tasks/
+target/
+.humanlayer/
