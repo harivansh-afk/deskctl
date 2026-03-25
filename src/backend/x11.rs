@@ -91,7 +91,7 @@ impl super::DesktopBackend for X11Backend {
             .duration_since(std::time::UNIX_EPOCH)
             .unwrap_or_default()
             .as_millis();
-        let screenshot_path = format!("/tmp/desktop-ctl-{timestamp}.png");
+        let screenshot_path = format!("/tmp/deskctl-{timestamp}.png");
         image
             .save(&screenshot_path)
             .context("Failed to save screenshot")?;

@@ -411,7 +411,7 @@ async fn handle_screenshot(
                 .duration_since(std::time::UNIX_EPOCH)
                 .unwrap_or_default()
                 .as_millis();
-            format!("/tmp/desktop-ctl-{ts}.png")
+            format!("/tmp/deskctl-{ts}.png")
         });
     let mut state = state.lock().await;
     match state.backend.screenshot(&path, annotate) {

@@ -24,11 +24,11 @@ pub fn run() -> Result<()> {
 }
 
 async fn async_run() -> Result<()> {
-    let socket_path = std::env::var("DESKTOP_CTL_SOCKET_PATH")
+    let socket_path = std::env::var("DESKCTL_SOCKET_PATH")
         .map(PathBuf::from)
-        .context("DESKTOP_CTL_SOCKET_PATH not set")?;
+        .context("DESKCTL_SOCKET_PATH not set")?;
 
-    let pid_path = std::env::var("DESKTOP_CTL_PID_PATH")
+    let pid_path = std::env::var("DESKCTL_PID_PATH")
         .map(PathBuf::from)
         .ok();
 
@@ -45,7 +45,7 @@ async fn async_run() -> Result<()> {
     let listener = UnixListener::bind(&socket_path)
         .context(format!("Failed to bind socket: {}", socket_path.display()))?;
 
-    let session = std::env::var("DESKTOP_CTL_SESSION").unwrap_or_else(|_| "default".to_string());
+    let session = std::env::var("DESKCTL_SESSION").unwrap_or_else(|_| "default".to_string());
     let state = Arc::new(Mutex::new(
         DaemonState::new(session, socket_path.clone())
             .context("Failed to initialize daemon state")?

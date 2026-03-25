@@ -7,7 +7,7 @@ use anyhow::Result;
 use crate::core::protocol::{Request, Response};
 
 #[derive(Parser)]
-#[command(name = "desktop-ctl", version, about = "Desktop control CLI for AI agents")]
+#[command(name = "deskctl", version, about = "Desktop control CLI for AI agents")]
 pub struct App {
     #[command(flatten)]
     pub global: GlobalOpts,
@@ -18,7 +18,7 @@ pub struct App {
 #[derive(Args)]
 pub struct GlobalOpts {
     /// Path to the daemon Unix socket
-    #[arg(long, global = true, env = "DESKTOP_CTL_SOCKET")]
+    #[arg(long, global = true, env = "DESKCTL_SOCKET")]
     pub socket: Option<PathBuf>,
 
     /// Session name (allows multiple daemon instances)
@@ -102,7 +102,7 @@ pub enum Command {
     GetMousePosition,
     /// Take a screenshot without window tree
     Screenshot {
-        /// Save path (default: /tmp/desktop-ctl-{timestamp}.png)
+        /// Save path (default: /tmp/deskctl-{timestamp}.png)
         path: Option<PathBuf>,
         /// Draw bounding boxes and labels
         #[arg(long)]

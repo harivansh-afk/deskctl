@@ -12,15 +12,15 @@ use crate::cli::GlobalOpts;
 use crate::core::protocol::{Request, Response};
 
 fn socket_dir() -> PathBuf {
-    if let Ok(dir) = std::env::var("DESKTOP_CTL_SOCKET_DIR") {
+    if let Ok(dir) = std::env::var("DESKCTL_SOCKET_DIR") {
         return PathBuf::from(dir);
     }
     if let Ok(runtime) = std::env::var("XDG_RUNTIME_DIR") {
-        return PathBuf::from(runtime).join("desktop-ctl");
+        return PathBuf::from(runtime).join("deskctl");
     }
     dirs::home_dir()
         .unwrap_or_else(|| PathBuf::from("/tmp"))
-        .join(".desktop-ctl")
+        .join(".deskctl")
 }
 
 fn socket_path(opts: &GlobalOpts) -> PathBuf {
@@ -47,10 +47,10 @@ fn spawn_daemon(opts: &GlobalOpts) -> Result<()> {
         .context("Failed to create socket directory")?;
 
     let mut cmd = Command::new(exe);
-    cmd.env("DESKTOP_CTL_DAEMON", "1")
-        .env("DESKTOP_CTL_SESSION", &opts.session)
-        .env("DESKTOP_CTL_SOCKET_PATH", socket_path(opts))
-        .env("DESKTOP_CTL_PID_PATH", pid_path(opts))
+    cmd.env("DESKCTL_DAEMON", "1")
+        .env("DESKCTL_SESSION", &opts.session)
+        .env("DESKCTL_SOCKET_PATH", socket_path(opts))
+        .env("DESKCTL_PID_PATH", pid_path(opts))
         .stdin(Stdio::null())
         .stdout(Stdio::null())
         .stderr(Stdio::piped());
