@@ -16,8 +16,70 @@ permissions:
   packages: write
 
 jobs:
+  changes:
+    name: Changes
+    runs-on: ubuntu-latest
+    outputs:
+      rust: ${{ steps.check.outputs.rust }}
+      version: ${{ steps.version.outputs.version }}
+      tag: ${{ steps.version.outputs.tag }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            rust:
+              - 'src/**'
+              - 'tests/**'
+              - 'Cargo.toml'
+              - 'Cargo.lock'
+              - 'docker/**'
+              - 'Makefile'
+
+      - name: Set outputs
+        id: check
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "rust=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "rust=${{ steps.filter.outputs.rust }}" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Calculate next version
+        id: version
+        if: github.event_name != 'pull_request' && steps.check.outputs.rust == 'true'
+        run: |
+          BASE=$(grep '^version' Cargo.toml | head -1 | sed 's/.*"\(.*\)"/\1/')
+          IFS='.' read -r MAJOR MINOR PATCH <<< "$BASE"
+
+          LATEST=$(git tag -l "v${MAJOR}.${MINOR}.*" | sort -V | tail -1)
+
+          if [ -z "$LATEST" ]; then
+            NEW="$BASE"
+          else
+            LATEST_VER="${LATEST#v}"
+            IFS='.' read -r _ _ LATEST_PATCH <<< "$LATEST_VER"
+            NEW_PATCH=$((LATEST_PATCH + 1))
+            NEW="${MAJOR}.${MINOR}.${NEW_PATCH}"
+          fi
+
+          # Ensure the computed version does not already have a tag
+          while git rev-parse "v${NEW}" >/dev/null 2>&1; do
+            IFS='.' read -r MAJOR MINOR PATCH <<< "$NEW"
+            NEW="${MAJOR}.${MINOR}.$((PATCH + 1))"
+          done
+
+          echo "version=${NEW}" >> "$GITHUB_OUTPUT"
+          echo "tag=v${NEW}" >> "$GITHUB_OUTPUT"
+
   validate:
     name: Validate
+    needs: changes
+    if: needs.changes.outputs.rust == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -59,6 +121,8 @@ jobs:
 
   integration:
     name: Integration (Xvfb)
+    needs: changes
+    if: needs.changes.outputs.rust == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -73,71 +137,9 @@ jobs:
       - name: Xvfb integration tests
         run: make test-integration
 
-  changes:
-    name: Changes
-    needs: [validate, integration]
-    if: github.event_name != 'pull_request'
-    runs-on: ubuntu-latest
-    outputs:
-      rust: ${{ steps.check.outputs.rust }}
-      version: ${{ steps.version.outputs.version }}
-      tag: ${{ steps.version.outputs.tag }}
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-
-      - uses: dorny/paths-filter@v3
-        id: filter
-        with:
-          filters: |
-            rust:
-              - 'src/**'
-              - 'tests/**'
-              - 'Cargo.toml'
-              - 'Cargo.lock'
-              - 'docker/**'
-              - 'Makefile'
-
-      - name: Set outputs
-        id: check
-        run: |
-          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-            echo "rust=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "rust=${{ steps.filter.outputs.rust }}" >> "$GITHUB_OUTPUT"
-          fi
-
-      - name: Calculate next version
-        id: version
-        if: steps.check.outputs.rust == 'true'
-        run: |
-          BASE=$(grep '^version' Cargo.toml | head -1 | sed 's/.*"\(.*\)"/\1/')
-          IFS='.' read -r MAJOR MINOR PATCH <<< "$BASE"
-
-          LATEST=$(git tag -l "v${MAJOR}.${MINOR}.*" | sort -V | tail -1)
-
-          if [ -z "$LATEST" ]; then
-            NEW="$BASE"
-          else
-            LATEST_VER="${LATEST#v}"
-            IFS='.' read -r _ _ LATEST_PATCH <<< "$LATEST_VER"
-            NEW_PATCH=$((LATEST_PATCH + 1))
-            NEW="${MAJOR}.${MINOR}.${NEW_PATCH}"
-          fi
-
-          # Ensure the computed version does not already have a tag
-          while git rev-parse "v${NEW}" >/dev/null 2>&1; do
-            IFS='.' read -r MAJOR MINOR PATCH <<< "$NEW"
-            NEW="${MAJOR}.${MINOR}.$((PATCH + 1))"
-          done
-
-          echo "version=${NEW}" >> "$GITHUB_OUTPUT"
-          echo "tag=v${NEW}" >> "$GITHUB_OUTPUT"
-
   build:
     name: Build (${{ matrix.target }})
-    needs: changes
+    needs: [changes, validate, integration]
     if: github.event_name != 'pull_request' && needs.changes.outputs.rust == 'true'
     runs-on: ubuntu-latest
     strategy:
