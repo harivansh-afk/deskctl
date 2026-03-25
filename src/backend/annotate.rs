@@ -5,7 +5,7 @@ use imageproc::rect::Rect;
 
 use crate::core::types::WindowInfo;
 
-// Embedded font - DejaVu Sans Mono for guaranteed availability
+// Embedded font
 const FONT_BYTES: &[u8] = include_bytes!("../../assets/DejaVuSansMono.ttf");
 
 const COLORS: &[Rgba<u8>] = &[
