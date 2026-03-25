@@ -73,3 +73,7 @@ For deskctl to be fully functional on a fresh VM you still need:
 ## Wayland Support
 
 Coming soon. The trait-based backend design means adding Hyprland/Wayland support is a single trait implementation with zero refactoring of the core which is good.
+
+## Acknowledgements
+
+- [@barrettruth](github.com/barrettruth) - i stole the website from [vimdoc](https://github.com/barrettruth/vimdoc-language-server)
