@@ -59,6 +59,14 @@ deskctl focus "firefox"
 Client-daemon architecture over Unix sockets (NDJSON wire protocol). 
 The daemon starts automatically on first command and keeps the X11 connection alive for fast repeated calls.
 
+Source layout:
+
+- `src/lib.rs` exposes the shared library target
+- `src/main.rs` is the thin CLI wrapper
+- `src/` contains production code and unit tests
+- `tests/` contains Linux/X11 integration tests
+- `tests/support/` contains shared integration helpers
+
 ## Runtime Requirements
 
 - Linux with X11 session
@@ -88,6 +96,30 @@ deskctl doctor
 ## Support Boundary
 
 `deskctl` supports Linux X11 in this phase. Wayland and Hyprland are explicitly out of scope for the current runtime contract.
+
+## Workflow
+
+Local validation uses the root `Makefile`:
+
+```bash
+make fmt-check
+make lint
+make test-unit
+make test-integration
+make site-format-check
+make validate
+```
+
+`make validate` is the full repo-quality check and requires Linux with `xvfb-run` plus `pnpm --dir site install`.
+
+The repository standardizes on `pre-commit` for fast commit-time checks:
+
+```bash
+pre-commit install
+pre-commit run --all-files
+```
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for the full contributor guide.
 
 ## Acknowledgements
 
