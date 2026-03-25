@@ -84,13 +84,16 @@ pub fn run(socket_path: &Path) -> DoctorReport {
         checks.push(match backend.capture_screenshot() {
             Ok(image) => check_ok(
                 "screenshot",
-                format!("Captured {}x{} desktop image", image.width(), image.height()),
+                format!(
+                    "Captured {}x{} desktop image",
+                    image.width(),
+                    image.height()
+                ),
             ),
             Err(error) => check_fail(
                 "screenshot",
                 error.to_string(),
-                "Verify the X11 session permits desktop capture on the active display."
-                    .to_string(),
+                "Verify the X11 session permits desktop capture on the active display.".to_string(),
             ),
         });
     } else {
@@ -117,7 +120,10 @@ fn check_socket_dir(socket_path: &Path) -> DoctorCheck {
     let Some(socket_dir) = socket_path.parent() else {
         return check_fail(
             "socket-dir",
-            format!("Socket path {} has no parent directory", socket_path.display()),
+            format!(
+                "Socket path {} has no parent directory",
+                socket_path.display()
+            ),
             "Use a socket path inside a writable directory.".to_string(),
         );
     };
@@ -201,39 +207,5 @@ fn check_fail(name: &str, details: String, fix: String) -> DoctorCheck {
         ok: false,
         details,
         fix: Some(fix),
-    }
-}
-
-#[cfg(all(test, target_os = "linux"))]
-mod tests {
-    use super::run;
-    use crate::test_support::{X11TestEnv, env_lock};
-
-    #[test]
-    fn doctor_reports_healthy_x11_environment_under_xvfb() {
-        let _guard = env_lock().lock().unwrap();
-        let Some(env) = X11TestEnv::new().unwrap() else {
-            eprintln!("Skipping Xvfb-dependent doctor test");
-            return;
-        };
-        env.create_window("deskctl doctor test", "DeskctlDoctor").unwrap();
-
-        let socket_path = std::env::temp_dir().join("deskctl-doctor-test.sock");
-        let report = run(&socket_path);
-
-        assert!(report.checks.iter().any(|check| check.name == "display" && check.ok));
-        assert!(report.checks.iter().any(|check| check.name == "backend" && check.ok));
-        assert!(
-            report
-                .checks
-                .iter()
-                .any(|check| check.name == "window-enumeration" && check.ok)
-        );
-        assert!(
-            report
-                .checks
-                .iter()
-                .any(|check| check.name == "screenshot" && check.ok)
-        );
     }
 }

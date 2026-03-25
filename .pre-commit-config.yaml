@@ -1,0 +1,15 @@
+repos:
+  - repo: local
+    hooks:
+      - id: rustfmt
+        name: rustfmt
+        entry: cargo fmt --
+        language: system
+        files: \.rs$
+        pass_filenames: true
+      - id: site-format-check
+        name: site format check
+        entry: make site-format-check
+        language: system
+        files: ^site/
+        pass_filenames: false

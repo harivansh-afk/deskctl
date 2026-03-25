@@ -19,7 +19,7 @@ Requests and responses are newline-delimited JSON (NDJSON) over a Unix socket.
 **Request:**
 
 ```json
-{"id": "r123456", "action": "snapshot", "annotate": true}
+{ "id": "r123456", "action": "snapshot", "annotate": true }
 ```
 
 **Response:**
@@ -31,7 +31,7 @@ Requests and responses are newline-delimited JSON (NDJSON) over a Unix socket.
 Error responses include an `error` field:
 
 ```json
-{"success": false, "error": "window not found: @w99"}
+{ "success": false, "error": "window not found: @w99" }
 ```
 
 ## Socket location
@@ -66,13 +66,13 @@ The trait-based design means adding Wayland support is a single trait implementa
 
 Window detection uses EWMH properties:
 
-| Property | Purpose |
-|----------|---------|
-| `_NET_CLIENT_LIST_STACKING` | Window stacking order |
-| `_NET_ACTIVE_WINDOW` | Currently focused window |
-| `_NET_WM_NAME` | Window title (UTF-8) |
-| `_NET_WM_STATE_HIDDEN` | Minimized state |
-| `_NET_CLOSE_WINDOW` | Graceful close |
-| `WM_CLASS` | Application class/name |
+| Property                    | Purpose                  |
+| --------------------------- | ------------------------ |
+| `_NET_CLIENT_LIST_STACKING` | Window stacking order    |
+| `_NET_ACTIVE_WINDOW`        | Currently focused window |
+| `_NET_WM_NAME`              | Window title (UTF-8)     |
+| `_NET_WM_STATE_HIDDEN`      | Minimized state          |
+| `_NET_CLOSE_WINDOW`         | Graceful close           |
+| `WM_CLASS`                  | Application class/name   |
 
 Falls back to `XQueryTree` if `_NET_CLIENT_LIST_STACKING` is unavailable.
