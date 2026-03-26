@@ -1,4 +1,5 @@
 pub mod connection;
+pub mod upgrade;
 
 use anyhow::Result;
 use clap::{Args, Parser, Subcommand};
@@ -121,6 +122,9 @@ pub enum Command {
     /// Diagnose X11 runtime, screenshot, and daemon health
     #[command(after_help = DOCTOR_EXAMPLES)]
     Doctor,
+    /// Upgrade deskctl using the current install channel
+    #[command(after_help = UPGRADE_EXAMPLES)]
+    Upgrade,
     /// Query runtime state
     #[command(subcommand)]
     Get(GetCmd),
@@ -231,6 +235,7 @@ const GET_SCREEN_SIZE_EXAMPLES: &str =
 const GET_MOUSE_POSITION_EXAMPLES: &str =
     "Examples:\n  deskctl get-mouse-position\n  deskctl --json get-mouse-position";
 const DOCTOR_EXAMPLES: &str = "Examples:\n  deskctl doctor\n  deskctl --json doctor";
+const UPGRADE_EXAMPLES: &str = "Examples:\n  deskctl upgrade\n  deskctl --json upgrade";
 const WAIT_WINDOW_EXAMPLES: &str = "Examples:\n  deskctl wait window --selector 'title=Firefox' --timeout 10\n  deskctl --json wait window --selector 'class=firefox' --poll-ms 100";
 const WAIT_FOCUS_EXAMPLES: &str = "Examples:\n  deskctl wait focus --selector 'id=win3' --timeout 5\n  deskctl wait focus --selector focused --poll-ms 200";
 const SCREENSHOT_EXAMPLES: &str =
@@ -300,6 +305,22 @@ pub fn run() -> Result<()> {
         return connection::run_doctor(&app.global);
     }
 
+    if let Command::Upgrade = app.command {
+        let response = upgrade::run_upgrade(&app.global)?;
+        let success = response.success;
+
+        if app.global.json {
+            println!("{}", serde_json::to_string_pretty(&response)?);
+            if !success {
+                std::process::exit(1);
+            }
+        } else {
+            print_response(&app.command, &response)?;
+        }
+
+        return Ok(());
+    }
+
     // All other commands need a daemon connection
     let request = build_request(&app.command)?;
     let response = connection::send_command(&app.global, &request)?;
@@ -363,6 +384,7 @@ fn build_request(cmd: &Command) -> Result<Request> {
         Command::GetScreenSize => Request::new("get-screen-size"),
         Command::GetMousePosition => Request::new("get-mouse-position"),
         Command::Doctor => unreachable!(),
+        Command::Upgrade => unreachable!(),
         Command::Get(sub) => match sub {
             GetCmd::ActiveWindow => Request::new("get-active-window"),
             GetCmd::Monitors => Request::new("get-monitors"),
@@ -422,6 +444,7 @@ fn render_success_lines(cmd: &Command, data: Option<&serde_json::Value>) -> Resu
         Command::Get(GetCmd::Systeminfo) => render_systeminfo_lines(data),
         Command::GetScreenSize => vec![render_screen_size_line(data)],
         Command::GetMousePosition => vec![render_mouse_position_line(data)],
+        Command::Upgrade => render_upgrade_lines(data),
         Command::Screenshot { annotate, .. } => render_screenshot_lines(data, *annotate),
         Command::Click { .. } => vec![render_click_line(data, false)],
         Command::Dblclick { .. } => vec![render_click_line(data, true)],
@@ -524,6 +547,28 @@ fn render_error_lines(response: &Response) -> Vec<String> {
                 .is_some_and(|mode| mode == "focused")
             {
                 lines.push("No focused window is available.".to_string());
+            }
+        }
+        "upgrade_failed" => {
+            if let Some(method) = data.get("install_method").and_then(|value| value.as_str()) {
+                lines.push(format!("Install method: {method}"));
+            }
+            if let Some(command) = data.get("command").and_then(|value| value.as_str()) {
+                lines.push(format!("Command: {command}"));
+            }
+            if let Some(reason) = data.get("io_error").and_then(|value| value.as_str()) {
+                lines.push(format!("Reason: {reason}"));
+            }
+            if let Some(hint) = data.get("hint").and_then(|value| value.as_str()) {
+                lines.push(format!("Hint: {hint}"));
+            }
+        }
+        "upgrade_unsupported" => {
+            if let Some(method) = data.get("install_method").and_then(|value| value.as_str()) {
+                lines.push(format!("Install method: {method}"));
+            }
+            if let Some(hint) = data.get("hint").and_then(|value| value.as_str()) {
+                lines.push(format!("Hint: {hint}"));
             }
         }
         _ => {}
@@ -719,6 +764,19 @@ fn render_screenshot_lines(data: &serde_json::Value, annotate: bool) -> Vec<Stri
                 lines.push(window_line(window));
             }
         }
+    }
+    lines
+}
+
+fn render_upgrade_lines(data: &serde_json::Value) -> Vec<String> {
+    let mut lines = Vec::new();
+    let method = data
+        .get("install_method")
+        .and_then(|value| value.as_str())
+        .unwrap_or("unknown");
+    lines.push(format!("Upgrade completed via {method}"));
+    if let Some(command) = data.get("command").and_then(|value| value.as_str()) {
+        lines.push(format!("Command: {command}"));
     }
     lines
 }

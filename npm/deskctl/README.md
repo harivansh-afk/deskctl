@@ -14,6 +14,12 @@ After install, run:
 deskctl --help
 ```
 
+To upgrade version:
+
+```bash
+deskctl upgrade
+```
+
 One-shot usage is also supported:
 
 ```bash

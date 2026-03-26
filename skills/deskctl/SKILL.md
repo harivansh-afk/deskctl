@@ -18,6 +18,12 @@ deskctl doctor
 deskctl snapshot --annotate
 ```
 
+If `deskctl` was installed through npm, refresh it later with:
+
+```bash
+deskctl upgrade
+```
+
 ## Agent loop
 
 Every desktop interaction follows: **observe -> wait -> act -> verify**.
