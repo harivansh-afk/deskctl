@@ -9,6 +9,9 @@ Desktop control cli for AI agents on Linux X11.
 
 ```bash
 npm install -g deskctl
+```
+
+```bash
 deskctl doctor
 deskctl snapshot --annotate
 ```
