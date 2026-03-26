@@ -16,22 +16,56 @@ import DocLayout from "../layouts/DocLayout.astro";
     then verify.
   </p>
 
-  <h2>Start here</h2>
+  <pre><code>{`npm install -g deskctl
+deskctl doctor
+deskctl snapshot --annotate`}</code></pre>
+
+  <h2>Start</h2>
+
+  <p>
+    Install the CLI, verify the runtime, then run the core observe -&gt; wait
+    -&gt; act -&gt; verify loop.
+  </p>
 
   <ul>
-    <li><a href="/installation">Installation</a></li>
-    <li><a href="/quick-start">Quick start</a></li>
+    <li>
+      <a href="/installation">Installation</a> - install paths, runtime requirements,
+      and first-run checks
+    </li>
+    <li>
+      <a href="/quick-start">Quick start</a> - the minimal workflow for real desktop
+      control
+    </li>
   </ul>
 
   <h2>Reference</h2>
 
+  <p>
+    Read the command surface, the daemon/runtime model, and the stable JSON
+    contract.
+  </p>
+
   <ul>
-    <li><a href="/commands">Commands</a></li>
-    <li><a href="/architecture">Architecture</a></li>
-    <li><a href="/runtime-contract">Runtime contract</a></li>
+    <li>
+      <a href="/commands">Commands</a> - grouped reads, waits, actions, selectors,
+      and global flags
+    </li>
+    <li>
+      <a href="/architecture">Architecture</a> - client/daemon model, sessions, sockets,
+      and support boundary
+    </li>
+    <li>
+      <a href="/runtime-contract">Runtime contract</a> - stable JSON fields, errors,
+      and best-effort text behavior
+    </li>
   </ul>
 
   <h2>Links</h2>
+
+  <p>
+    The repo is the source of truth for the CLI, the skill, and the release
+    assets.
+  </p>
 
   <ul>
     <li>

@@ -6,7 +6,10 @@ toc: true
 
 # Commands
 
-## Observe
+The public CLI is intentionally small. Most workflows boil down to grouped
+reads, grouped waits, selector-driven actions, and a few input primitives.
+
+## Observe and inspect
 
 ```sh
 deskctl doctor
@@ -25,9 +28,10 @@ deskctl get-mouse-position
 
 `doctor` checks the runtime before daemon startup. `snapshot` produces a
 screenshot plus window refs. `list-windows` is the same window tree without the
-side effect of writing a screenshot.
+side effect of writing a screenshot. The grouped `get` commands are the
+preferred read surface for focused state queries.
 
-## Wait
+## Wait for state transitions
 
 ```sh
 deskctl wait window --selector 'title=Firefox' --timeout 10
@@ -38,7 +42,7 @@ deskctl --json wait window --selector 'class=firefox' --poll-ms 100
 Wait commands return the matched window payload on success. In `--json` mode,
 timeouts and selector failures expose structured `kind` values.
 
-## Act on a window
+## Act on windows
 
 ```sh
 deskctl launch firefox
@@ -55,7 +59,7 @@ deskctl resize-window @w1 1280 720
 Selector-driven actions accept refs, explicit selector modes, or absolute
 coordinates where appropriate.
 
-## Input and mouse
+## Keyboard and mouse input
 
 ```sh
 deskctl type "hello world"
@@ -71,16 +75,10 @@ Supported key names include `enter`, `tab`, `escape`, `backspace`, `delete`,
 `space`, arrow keys, paging keys, `f1` through `f12`, and any single
 character.
 
-## Launch
-
-```sh
-deskctl launch firefox
-deskctl launch code -- --new-window
-```
-
 ## Selectors
 
-Prefer explicit selectors when the target matters:
+Prefer explicit selectors when the target matters. They are clearer in logs,
+more deterministic for automation, and easier to retry safely.
 
 ```sh
 ref=w1

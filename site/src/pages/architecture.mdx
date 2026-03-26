@@ -6,9 +6,12 @@ toc: true
 
 # Architecture
 
+`deskctl` is not trying to be a desktop environment abstraction layer. The
+design goal is a small, unsurprising Linux X11 control primitive that agents
+can discover and compose progressively.
+
 ## Public model
 
-`deskctl` is a thin, non-interactive X11 control primitive for agent loops.
 The public flow is:
 
 - diagnose with `deskctl doctor`
@@ -20,7 +23,7 @@ The public flow is:
 The tool stays intentionally narrow. It does not try to be a full desktop shell
 or a speculative Wayland abstraction.
 
-## Client-daemon architecture
+## Client and daemon
 
 The CLI talks to an auto-managed daemon over a Unix socket. The daemon keeps
 the X11 connection alive so repeated commands stay fast and share the same
@@ -76,7 +79,7 @@ main public knob when you need isolated daemon instances.
 Selector and wait failures are structured in `--json` mode so clients can
 recover without scraping text.
 
-## Backend notes
+## Backend boundary
 
 The backend is built around a `DesktopBackend` trait and currently ships with
 an X11 implementation backed by `x11rb`.

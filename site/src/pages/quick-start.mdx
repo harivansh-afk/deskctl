@@ -6,7 +6,10 @@ toc: true
 
 # Quick start
 
-## Install and diagnose
+The fastest way to use `deskctl` is to follow the same four-step loop every
+time: observe, wait, act, verify.
+
+## 1. Install and diagnose
 
 ```sh
 npm install -g deskctl
@@ -16,7 +19,7 @@ deskctl doctor
 Use `deskctl doctor` first. It checks X11 connectivity, basic enumeration,
 screenshot viability, and socket health before you start driving the desktop.
 
-## Observe
+## 2. Observe the desktop
 
 ```sh
 deskctl snapshot --annotate
@@ -29,7 +32,7 @@ Use `snapshot` when you want a screenshot artifact plus window refs. Use
 `list-windows` when you only need the current window tree without writing a
 screenshot.
 
-## Target windows cleanly
+## 3. Pick selectors that stay readable
 
 Prefer explicit selectors when you need deterministic targeting:
 
@@ -44,7 +47,7 @@ focused
 Legacy refs such as `@w1` still work after `snapshot` or `list-windows`. Bare
 strings like `firefox` are fuzzy matches and now fail on ambiguity.
 
-## Wait, act, verify
+## 4. Wait, act, verify
 
 The core loop is:
 
@@ -69,7 +72,7 @@ deskctl snapshot
 The wait commands return the matched window payload on success, so they compose
 cleanly into the next action.
 
-## Use `--json` when parsing matters
+## 5. Use `--json` when parsing matters
 
 Every command supports `--json` and uses the same top-level envelope:
 
