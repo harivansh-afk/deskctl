@@ -224,30 +224,30 @@ hr {
   }
 }
 
-nav {
+.breadcrumbs {
   max-width: 50rem;
   margin: 0 auto;
   padding: 1.5rem clamp(1.25rem, 5vw, 3rem) 0;
   font-size: 0.9rem;
 }
 
-nav a {
+.breadcrumbs a {
   color: inherit;
   text-decoration: none;
   opacity: 0.6;
   transition: opacity 0.15s;
 }
 
-nav a:hover {
+.breadcrumbs a:hover {
   opacity: 1;
 }
 
-nav .title {
+.breadcrumbs .title {
   font-weight: 500;
   opacity: 1;
 }
 
-nav .sep {
+.breadcrumbs .sep {
   opacity: 0.3;
   margin: 0 0.5em;
 }

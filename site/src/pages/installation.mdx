@@ -6,19 +6,30 @@ toc: true
 
 # Installation
 
-## Default install
+Install the public `deskctl` command first, then validate the desktop runtime
+with `deskctl doctor` before trying to automate anything.
+
+## Recommended path
 
 ```sh
 npm install -g deskctl
+deskctl doctor
 ```
 
 `deskctl` is the default install path. It installs the command by
 downloading the matching GitHub Release asset for the supported runtime target.
 
-The repo skill lives under `skills/deskctl`, so `skills` can install it
-directly from this GitHub repo. It is designed around the same observe -> wait
--> act -> verify loop as the CLI. `-g` installs it globally; omit that flag if
-you want a project-local install.
+This path does not require a Rust toolchain. The installed command is always
+`deskctl`, even though the release asset itself is target-specific.
+
+## Skill install
+
+The repo skill lives under `skills/deskctl`, so you can install it
+directly uring `skills.sh`
+
+```sh
+npx skills add harivansh-afk/deskctl
+```
 
 ## Other install paths
 
@@ -29,7 +40,7 @@ nix run github:harivansh-afk/deskctl -- --help
 nix profile install github:harivansh-afk/deskctl
 ```
 
-### Build from source
+### Rust
 
 ```sh
 git clone https://github.com/harivansh-afk/deskctl
@@ -53,8 +64,13 @@ Source builds on Linux require:
 
 The binary itself only depends on the standard Linux glibc runtime.
 
-If setup fails, run:
+## Verification
+
+If setup fails for any reason start here:
 
 ```sh
 deskctl doctor
 ```
+
+`doctor` checks X11 connectivity, window enumeration, screenshot viability, and
+daemon/socket health before normal command execution.

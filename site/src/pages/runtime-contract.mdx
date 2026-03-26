@@ -11,7 +11,7 @@ This page defines the current public output contract for `deskctl`.
 It is intentionally scoped to the current Linux X11 runtime surface. It does
 not promise stability for future Wayland or window-manager-specific features.
 
-## JSON envelope
+## Stable top-level envelope
 
 Every command supports `--json` and uses the same top-level envelope:
 
@@ -32,7 +32,7 @@ Stable top-level fields:
 If `success` is `false`, the command exits non-zero in both text mode and JSON
 mode.
 
-## Stable window fields
+## Stable window payload
 
 Whenever a response includes a window payload, these fields are stable:
 
