@@ -27,10 +27,13 @@ npx deskctl --help
 ## Installable skill
 
 ```bash
-npx skills add harivansh-afk/deskctl -s deskctl
+npx skills add harivansh-afk/deskctl --skill deskctl -g
 ```
 
-The installable skill lives in [`skills/deskctl`](skills/deskctl) and is built around the same observe -> wait -> act -> verify loop as the CLI.
+The installable skill lives in [`skills/deskctl`](skills/deskctl), follows the
+standard `skills/` repo layout, and installs directly from this GitHub repo via
+`npx skills add ...`. It is built around the same observe -> wait -> act ->
+verify loop as the CLI.
 
 ## Quick example
 

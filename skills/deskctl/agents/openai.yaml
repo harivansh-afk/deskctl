@@ -1,0 +1,7 @@
+interface:
+  display_name: "deskctl"
+  short_description: "Control Linux X11 desktops from agent loops"
+  default_prompt: "Use $deskctl to diagnose the desktop, observe state, wait for UI changes, act deterministically, and verify the result."
+
+policy:
+  allow_implicit_invocation: true

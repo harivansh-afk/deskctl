@@ -27,11 +27,13 @@ npx deskctl --help
 For `skills.sh`-style runtimes:
 
 ```sh
-npx skills add harivansh-afk/deskctl -s deskctl
+npx skills add harivansh-afk/deskctl --skill deskctl -g
 ```
 
-The repo skill lives under `skills/deskctl` and is designed around the same
-observe -> wait -> act -> verify loop as the CLI.
+The repo skill lives under `skills/deskctl`, so `skills` can install it
+directly from this GitHub repo. It is designed around the same observe -> wait
+-> act -> verify loop as the CLI. `-g` installs it globally; omit that flag if
+you want a project-local install.
 
 ## Other install paths
 
