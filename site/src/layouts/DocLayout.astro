@@ -9,23 +9,6 @@ const headings: MarkdownHeading[] = Astro.props.headings ?? [];
 const isIndex =
   Astro.url.pathname === "/" || Astro.url.pathname === "/index.html";
 const h2s = headings.filter((h) => h.depth === 2);
-const docsSections = [
-  {
-    title: "Start",
-    items: [
-      { href: "/installation", label: "Installation" },
-      { href: "/quick-start", label: "Quick start" },
-    ],
-  },
-  {
-    title: "Reference",
-    items: [
-      { href: "/commands", label: "Commands" },
-      { href: "/architecture", label: "Architecture" },
-      { href: "/runtime-contract", label: "Runtime contract" },
-    ],
-  },
-];
 
 function formatTocText(text: string): string {
   if (!text.includes(" ") && /[-.]/.test(text)) {
@@ -54,31 +37,6 @@ function formatTocText(text: string): string {
           <span class="sep">/</span>
           <a href={Astro.url.pathname}>{title}</a>
         </nav>
-      )
-    }
-
-    {
-      !isIndex && (
-        <div class="docs-nav">
-          {docsSections.map((section) => (
-            <div class="docs-nav-section">
-              <span class="docs-nav-title">{section.title}</span>
-              <div class="docs-nav-links">
-                {section.items.map((item) => (
-                  <a
-                    href={item.href}
-                    class:list={[
-                      "docs-nav-link",
-                      { active: Astro.url.pathname === item.href },
-                    ]}
-                  >
-                    {item.label}
-                  </a>
-                ))}
-              </div>
-            </div>
-          ))}
-        </div>
       )
     }
 
