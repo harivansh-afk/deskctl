@@ -8,7 +8,7 @@ on:
         required: true
         type: string
       publish_npm:
-        description: Publish deskctl-cli to npm
+        description: Publish deskctl to npm
         required: true
         type: boolean
         default: false
@@ -51,7 +51,7 @@ jobs:
           TAG="${{ inputs.tag }}"
           VERSION="${TAG#v}"
           CARGO_VERSION=$(grep '^version' Cargo.toml | head -1 | sed 's/.*"\(.*\)"/\1/')
-          NPM_VERSION=$(node -p 'require("./npm/deskctl-cli/package.json").version')
+          NPM_VERSION=$(node -p 'require("./npm/deskctl/package.json").version')
 
           test "$VERSION" = "$CARGO_VERSION"
           test "$VERSION" = "$NPM_VERSION"
@@ -62,7 +62,7 @@ jobs:
           VERSION="${{ inputs.tag }}"
           VERSION="${VERSION#v}"
 
-          if npm view "deskctl-cli@${VERSION}" version >/dev/null 2>&1; then
+          if npm view "deskctl@${VERSION}" version >/dev/null 2>&1; then
             echo "npm=true" >> "$GITHUB_OUTPUT"
           else
             echo "npm=false" >> "$GITHUB_OUTPUT"
@@ -77,8 +77,8 @@ jobs:
       - name: Validate npm package
         run: |
           mkdir -p ./tmp/npm-pack
-          node npm/deskctl-cli/scripts/validate-package.js
-          npm pack ./npm/deskctl-cli --pack-destination ./tmp/npm-pack >/dev/null
+          node npm/deskctl/scripts/validate-package.js
+          npm pack ./npm/deskctl --pack-destination ./tmp/npm-pack >/dev/null
 
       - name: Validate crate publish path
         run: cargo publish --dry-run --locked
@@ -87,7 +87,7 @@ jobs:
         if: inputs.publish_npm && steps.published.outputs.npm != 'true'
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-        run: npm publish ./npm/deskctl-cli --access public
+        run: npm publish ./npm/deskctl --access public
 
       - name: Publish crates.io
         if: inputs.publish_crates && steps.published.outputs.crates != 'true'

@@ -26,7 +26,7 @@ function supportedTarget(platform = process.platform, arch = process.arch) {
   }
 
   throw new Error(
-    `deskctl-cli currently supports linux-x64 only. Received ${platform}-${arch}.`
+    `deskctl currently supports linux-x64 only. Received ${platform}-${arch}.`
   );
 }
 

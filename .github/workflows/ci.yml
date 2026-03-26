@@ -189,7 +189,7 @@ jobs:
           NEW="${{ needs.changes.outputs.version }}"
           if [ "$CURRENT" != "$NEW" ]; then
             sed -i "0,/^version = \"${CURRENT}\"/s//version = \"${NEW}\"/" Cargo.toml
-            node -e 'const fs=require("node:fs"); const path="npm/deskctl-cli/package.json"; const pkg=JSON.parse(fs.readFileSync(path,"utf8")); pkg.version=process.argv[1]; fs.writeFileSync(path, JSON.stringify(pkg, null, 2)+"\n");' "$NEW"
+            node -e 'const fs=require("node:fs"); const path="npm/deskctl/package.json"; const pkg=JSON.parse(fs.readFileSync(path,"utf8")); pkg.version=process.argv[1]; fs.writeFileSync(path, JSON.stringify(pkg, null, 2)+"\n");' "$NEW"
             cargo generate-lockfile
           fi
 
@@ -199,7 +199,7 @@ jobs:
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
           if ! git diff --quiet; then
-            git add Cargo.toml Cargo.lock npm/deskctl-cli/package.json
+            git add Cargo.toml Cargo.lock npm/deskctl/package.json
             git commit -m "release: ${{ needs.changes.outputs.tag }} [skip ci]"
           fi
 

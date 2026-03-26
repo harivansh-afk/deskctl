@@ -26,13 +26,13 @@ function main() {
   }
 
   if (pkg.bin?.deskctl !== "bin/deskctl.js") {
-    throw new Error("deskctl-cli must expose the deskctl bin entrypoint.");
+    throw new Error("deskctl must expose the deskctl bin entrypoint.");
   }
 
   const target = supportedTarget("linux", "x64");
   const targetPath = vendorBinaryPath(target);
   const vendorDir = path.dirname(targetPath);
-  if (!vendorDir.endsWith(path.join("deskctl-cli", "vendor"))) {
+  if (!vendorDir.endsWith(path.join("deskctl", "vendor"))) {
     throw new Error("Vendor binary directory resolved unexpectedly.");
   }
 }

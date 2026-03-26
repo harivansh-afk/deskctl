@@ -1,7 +1,7 @@
 ---
 name: deskctl
 description: Non-interactive X11 desktop control for AI agents. Use when the task involves controlling a Linux desktop - clicking, typing, reading windows, waiting for UI state, or taking screenshots inside a sandbox or VM.
-allowed-tools: Bash(deskctl:*), Bash(npx deskctl-cli:*), Bash(npm:*), Bash(which:*), Bash(printenv:*), Bash(echo:*)
+allowed-tools: Bash(deskctl:*), Bash(npx deskctl:*), Bash(npm:*), Bash(which:*), Bash(printenv:*), Bash(echo:*)
 ---
 
 # deskctl
@@ -13,7 +13,7 @@ All output follows the runtime contract defined in [references/runtime-contract.
 ## Quick start
 
 ```bash
-npm install -g deskctl-cli
+npm install -g deskctl
 deskctl doctor
 deskctl snapshot --annotate
 ```

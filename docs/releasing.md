@@ -12,14 +12,14 @@ GitHub Releases are the canonical binary source. The npm package consumes those 
 ## Package Names
 
 - crate: `deskctl`
-- npm package: `deskctl-cli`
+- npm package: `deskctl`
 - installed command: `deskctl`
 
 ## Prerequisites
 
 Before the first live publish on each registry:
 
-- npm ownership for `deskctl-cli`
+- npm ownership for `deskctl`
 - crates.io ownership for `deskctl`
 - repository secrets:
   - `NPM_TOKEN`
