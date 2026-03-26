@@ -37,9 +37,9 @@ preferred read surface for focused state queries.
 ## Wait for state transitions
 
 ```sh
-deskctl wait window --selector 'title=Firefox' --timeout 10
+deskctl wait window --selector 'title=Chromium' --timeout 10
 deskctl wait focus --selector 'id=win3' --timeout 5
-deskctl --json wait window --selector 'class=firefox' --poll-ms 100
+deskctl --json wait window --selector 'class=chromium' --poll-ms 100
 ```
 
 Wait commands return the matched window payload on success. In `--json` mode,
@@ -48,9 +48,9 @@ timeouts and selector failures expose structured `kind` values.
 ## Act on windows
 
 ```sh
-deskctl launch firefox
+deskctl launch chromium
 deskctl focus @w1
-deskctl focus 'title=Firefox'
+deskctl focus 'title=Chromium'
 deskctl click @w1
 deskctl click 960,540
 deskctl dblclick @w2
@@ -86,8 +86,8 @@ more deterministic for automation, and easier to retry safely.
 ```sh
 ref=w1
 id=win1
-title=Firefox
-class=firefox
+title=Chromium
+class=chromium
 focused
 ```
 
@@ -99,7 +99,7 @@ w1
 win1
 ```
 
-Bare strings like `firefox` are fuzzy matches. They resolve when there is one
+Bare strings like `chromium` are fuzzy matches. They resolve when there is one
 match and fail with candidate windows when there are multiple matches.
 
 ## Global options

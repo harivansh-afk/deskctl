@@ -412,8 +412,8 @@ mod tests {
             SelectorQuery::WindowId("win4".to_string())
         );
         assert_eq!(
-            SelectorQuery::parse("title=Firefox"),
-            SelectorQuery::Title("Firefox".to_string())
+            SelectorQuery::parse("title=Chromium"),
+            SelectorQuery::Title("Chromium".to_string())
         );
         assert_eq!(
             SelectorQuery::parse("class=Navigator"),
@@ -458,11 +458,11 @@ mod tests {
     fn fuzzy_resolution_fails_with_candidates_when_ambiguous() {
         let mut refs = RefMap::new();
         refs.rebuild(&[
-            sample_window(1, "Firefox"),
+            sample_window(1, "Chromium"),
             BackendWindow {
                 native_id: 2,
-                title: "Firefox Settings".to_string(),
-                app_name: "Firefox".to_string(),
+                title: "Chromium Settings".to_string(),
+                app_name: "Chromium".to_string(),
                 x: 0,
                 y: 0,
                 width: 10,
@@ -472,7 +472,7 @@ mod tests {
             },
         ]);
 
-        match refs.resolve("firefox") {
+        match refs.resolve("chromium") {
             ResolveResult::Ambiguous {
                 mode, candidates, ..
             } => {

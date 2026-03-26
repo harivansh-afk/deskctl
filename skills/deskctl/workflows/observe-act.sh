@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # observe-act.sh - main desktop interaction loop
 # usage: ./observe-act.sh <selector> [action] [action-args...]
-# example: ./observe-act.sh 'title=Firefox' click
+# example: ./observe-act.sh 'title=Chromium' click
 # example: ./observe-act.sh 'class=terminal' type "ls -la"
 set -euo pipefail
 

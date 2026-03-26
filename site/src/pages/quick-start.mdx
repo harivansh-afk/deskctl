@@ -38,13 +38,13 @@ Prefer explicit selectors when you need deterministic targeting:
 ```sh
 ref=w1
 id=win1
-title=Firefox
-class=firefox
+title=Chromium
+class=chromium
 focused
 ```
 
 Legacy refs such as `@w1` still work after `snapshot` or `list-windows`. Bare
-strings like `firefox` are fuzzy matches and now fail on ambiguity.
+strings like `chromium` are fuzzy matches and now fail on ambiguity.
 
 ## 4. Wait, act, verify
 
@@ -55,16 +55,16 @@ The core loop is:
 deskctl snapshot --annotate
 
 # wait
-deskctl wait window --selector 'title=Firefox' --timeout 10
+deskctl wait window --selector 'title=Chromium' --timeout 10
 
 # act
-deskctl focus 'title=Firefox'
+deskctl focus 'title=Chromium'
 deskctl hotkey ctrl l
 deskctl type "https://example.com"
 deskctl press enter
 
 # verify
-deskctl wait focus --selector 'title=Firefox' --timeout 5
+deskctl wait focus --selector 'title=Chromium' --timeout 5
 deskctl snapshot
 ```
 
@@ -84,8 +84,8 @@ Every command supports `--json` and uses the same top-level envelope:
       {
         "ref_id": "w1",
         "window_id": "win1",
-        "title": "Firefox",
-        "app_name": "firefox",
+        "title": "Chromium",
+        "app_name": "chromium",
         "x": 0,
         "y": 0,
         "width": 1920,

@@ -23,8 +23,8 @@ deskctl get-mouse-position
 ## Wait
 
 ```bash
-deskctl wait window --selector 'title=Firefox' --timeout 10
-deskctl wait focus --selector 'class=firefox' --timeout 5
+deskctl wait window --selector 'title=Chromium' --timeout 10
+deskctl wait focus --selector 'class=chromium' --timeout 5
 ```
 
 Returns the matched window payload on success. Failures include structured
@@ -35,8 +35,8 @@ Returns the matched window payload on success. Failures include structured
 ```bash
 ref=w1
 id=win1
-title=Firefox
-class=firefox
+title=Chromium
+class=chromium
 focused
 ```
 
@@ -46,7 +46,7 @@ on ambiguity.
 ## Act
 
 ```bash
-deskctl focus 'class=firefox'
+deskctl focus 'class=chromium'
 deskctl click @w1
 deskctl dblclick @w2
 deskctl type "hello world"
@@ -59,7 +59,7 @@ deskctl mouse drag 100 100 500 500
 deskctl move-window @w1 100 120
 deskctl resize-window @w1 1280 720
 deskctl close @w3
-deskctl launch firefox
+deskctl launch chromium
 ```
 
 The daemon starts automatically on first command. In normal usage you should
