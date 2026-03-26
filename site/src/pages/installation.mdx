@@ -10,25 +10,10 @@ toc: true
 
 ```sh
 npm install -g deskctl
-deskctl --help
 ```
 
 `deskctl` is the default install path. It installs the command by
 downloading the matching GitHub Release asset for the supported runtime target.
-
-## One-shot usage
-
-```sh
-npx deskctl --help
-```
-
-## Agent skill
-
-For `skills.sh`-style runtimes:
-
-```sh
-npx skills add harivansh-afk/deskctl --skill deskctl -g
-```
 
 The repo skill lives under `skills/deskctl`, so `skills` can install it
 directly from this GitHub repo. It is designed around the same observe -> wait
