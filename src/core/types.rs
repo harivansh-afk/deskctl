@@ -88,9 +88,21 @@ impl std::fmt::Display for WindowInfo {
 
 #[allow(dead_code)]
 fn truncate(s: &str, max: usize) -> String {
-    if s.len() <= max {
+    if s.chars().count() <= max {
         s.to_string()
     } else {
-        format!("{}...", &s[..max - 3])
+        let truncated: String = s.chars().take(max.saturating_sub(3)).collect();
+        format!("{truncated}...")
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::truncate;
+
+    #[test]
+    fn truncate_is_char_safe() {
+        let input = format!("fire{}fox", '\u{00E9}');
+        assert_eq!(truncate(&input, 7), "fire...");
     }
 }

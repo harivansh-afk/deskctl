@@ -81,9 +81,13 @@ async fn handle_click(request: &Request, state: &Arc<Mutex<DaemonState>>) -> Res
         ResolveResult::Match(entry) => {
             let (x, y) = entry.center();
             match state.backend.click(x, y) {
-                Ok(()) => Response::ok(
-                    serde_json::json!({"clicked": {"x": x, "y": y, "selector": selector, "window_id": entry.window_id}}),
-                ),
+                Ok(()) => Response::ok(serde_json::json!({
+                    "clicked": {"x": x, "y": y},
+                    "selector": selector,
+                    "ref_id": entry.ref_id,
+                    "window_id": entry.window_id,
+                    "title": entry.title,
+                })),
                 Err(error) => Response::err(format!("Click failed: {error}")),
             }
         }
@@ -117,9 +121,13 @@ async fn handle_dblclick(request: &Request, state: &Arc<Mutex<DaemonState>>) -> 
         ResolveResult::Match(entry) => {
             let (x, y) = entry.center();
             match state.backend.dblclick(x, y) {
-                Ok(()) => Response::ok(
-                    serde_json::json!({"double_clicked": {"x": x, "y": y, "selector": selector, "window_id": entry.window_id}}),
-                ),
+                Ok(()) => Response::ok(serde_json::json!({
+                    "double_clicked": {"x": x, "y": y},
+                    "selector": selector,
+                    "ref_id": entry.ref_id,
+                    "window_id": entry.window_id,
+                    "title": entry.title,
+                })),
                 Err(error) => Response::err(format!("Double-click failed: {error}")),
             }
         }
@@ -267,7 +275,10 @@ async fn handle_window_action(
         Ok(()) => Response::ok(serde_json::json!({
             "action": action,
             "window": entry.title,
+            "title": entry.title,
+            "ref_id": entry.ref_id,
             "window_id": entry.window_id,
+            "selector": selector,
         })),
         Err(error) => Response::err(format!("{action} failed: {error}")),
     }
@@ -296,7 +307,10 @@ async fn handle_move_window(request: &Request, state: &Arc<Mutex<DaemonState>>) 
     match state.backend.move_window(entry.backend_window_id, x, y) {
         Ok(()) => Response::ok(serde_json::json!({
             "moved": entry.title,
+            "title": entry.title,
+            "ref_id": entry.ref_id,
             "window_id": entry.window_id,
+            "selector": selector,
             "x": x,
             "y": y,
         })),
@@ -338,7 +352,10 @@ async fn handle_resize_window(request: &Request, state: &Arc<Mutex<DaemonState>>
     {
         Ok(()) => Response::ok(serde_json::json!({
             "resized": entry.title,
+            "title": entry.title,
+            "ref_id": entry.ref_id,
             "window_id": entry.window_id,
+            "selector": selector,
             "width": width,
             "height": height,
         })),
