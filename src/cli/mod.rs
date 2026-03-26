@@ -245,9 +245,13 @@ pub fn run() -> Result<()> {
     // All other commands need a daemon connection
     let request = build_request(&app.command)?;
     let response = connection::send_command(&app.global, &request)?;
+    let success = response.success;
 
     if app.global.json {
         println!("{}", serde_json::to_string_pretty(&response)?);
+        if !success {
+            std::process::exit(1);
+        }
     } else {
         print_response(&app.command, &response)?;
     }
@@ -392,11 +396,7 @@ fn print_response(cmd: &Command, response: &Response) -> Result<()> {
                     } else {
                         "visible"
                     };
-                    let display_title = if title.len() > 30 {
-                        format!("{}...", &title[..27])
-                    } else {
-                        title.to_string()
-                    };
+                    let display_title = truncate_display(title, 30);
                     println!(
                         "@{:<4} {:<30} ({:<7})  {},{} {}x{}",
                         ref_id, display_title, state, x, y, width, height
@@ -496,11 +496,7 @@ fn print_window_line(window: &serde_json::Value, stderr: bool) {
     let line = format!(
         "@{:<4} {:<30} ({:<7})  {},{} {}x{} [{}]",
         ref_id,
-        if title.len() > 30 {
-            format!("{}...", &title[..27])
-        } else {
-            title.to_string()
-        },
+        truncate_display(title, 30),
         state,
         x,
         y,
@@ -513,4 +509,14 @@ fn print_window_line(window: &serde_json::Value, stderr: bool) {
     } else {
         println!("{line}");
     }
+}
+
+fn truncate_display(value: &str, max_chars: usize) -> String {
+    let char_count = value.chars().count();
+    if char_count <= max_chars {
+        return value.to_string();
+    }
+
+    let truncated: String = value.chars().take(max_chars.saturating_sub(3)).collect();
+    format!("{truncated}...")
 }

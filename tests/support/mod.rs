@@ -21,6 +21,13 @@ pub fn env_lock() -> &'static Mutex<()> {
     LOCK.get_or_init(|| Mutex::new(()))
 }
 
+pub fn env_lock_guard() -> std::sync::MutexGuard<'static, ()> {
+    match env_lock().lock() {
+        Ok(guard) => guard,
+        Err(poisoned) => poisoned.into_inner(),
+    }
+}
+
 pub struct SessionEnvGuard {
     old_session_type: Option<String>,
 }

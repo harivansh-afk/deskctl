@@ -8,13 +8,13 @@ use deskctl::core::doctor;
 use deskctl::core::protocol::Request;
 
 use self::support::{
-    deskctl_tmp_screenshot_count, env_lock, json_response, successful_json_response, FixtureWindow,
-    SessionEnvGuard, TestSession,
+    deskctl_tmp_screenshot_count, env_lock_guard, json_response, successful_json_response,
+    FixtureWindow, SessionEnvGuard, TestSession,
 };
 
 #[test]
 fn doctor_reports_healthy_x11_environment() -> Result<()> {
-    let _guard = env_lock().lock().unwrap();
+    let _guard = env_lock_guard();
     let Some(_env) = SessionEnvGuard::prepare() else {
         eprintln!("Skipping X11 integration test because DISPLAY is not set");
         return Ok(());
@@ -46,7 +46,7 @@ fn doctor_reports_healthy_x11_environment() -> Result<()> {
 
 #[test]
 fn list_windows_is_side_effect_free() -> Result<()> {
-    let _guard = env_lock().lock().unwrap();
+    let _guard = env_lock_guard();
     let Some(_env) = SessionEnvGuard::prepare() else {
         eprintln!("Skipping X11 integration test because DISPLAY is not set");
         return Ok(());
@@ -84,7 +84,7 @@ fn list_windows_is_side_effect_free() -> Result<()> {
 
 #[test]
 fn daemon_start_recovers_from_stale_socket() -> Result<()> {
-    let _guard = env_lock().lock().unwrap();
+    let _guard = env_lock_guard();
     let Some(_env) = SessionEnvGuard::prepare() else {
         eprintln!("Skipping X11 integration test because DISPLAY is not set");
         return Ok(());
@@ -116,7 +116,7 @@ fn daemon_start_recovers_from_stale_socket() -> Result<()> {
 
 #[test]
 fn wait_window_returns_matched_window_payload() -> Result<()> {
-    let _guard = env_lock().lock().unwrap();
+    let _guard = env_lock_guard();
     let Some(_env) = SessionEnvGuard::prepare() else {
         eprintln!("Skipping X11 integration test because DISPLAY is not set");
         return Ok(());
@@ -158,7 +158,7 @@ fn wait_window_returns_matched_window_payload() -> Result<()> {
 
 #[test]
 fn ambiguous_fuzzy_selector_returns_candidates() -> Result<()> {
-    let _guard = env_lock().lock().unwrap();
+    let _guard = env_lock_guard();
     let Some(_env) = SessionEnvGuard::prepare() else {
         eprintln!("Skipping X11 integration test because DISPLAY is not set");
         return Ok(());
@@ -194,7 +194,7 @@ fn ambiguous_fuzzy_selector_returns_candidates() -> Result<()> {
 
 #[test]
 fn wait_focus_timeout_is_structured() -> Result<()> {
-    let _guard = env_lock().lock().unwrap();
+    let _guard = env_lock_guard();
     let Some(_env) = SessionEnvGuard::prepare() else {
         eprintln!("Skipping X11 integration test because DISPLAY is not set");
         return Ok(());
