@@ -22,22 +22,14 @@ downloading the matching GitHub Release asset for the supported runtime target.
 This path does not require a Rust toolchain. The installed command is always
 `deskctl`, even though the release asset itself is target-specific.
 
-## Quick try without a global install
+## Skill install
+
+The repo skill lives under `skills/deskctl`, so you can install it
+directly uring `skills.sh`
 
 ```sh
-npx deskctl --help
+npx skills add harivansh-afk/deskctl
 ```
-
-This is useful when you only need a temporary run or want to smoke-test a
-machine before deciding how to install it permanently.
-
-## What the npm install does
-
-- downloads the matching GitHub Release asset for the current supported target
-- exposes the public command as `deskctl`
-- keeps the install path operator-friendly: no source build, no manual rename
-
-Today the npm distribution is aimed at Linux x64 X11 environments.
 
 ## Other install paths
 
@@ -48,7 +40,7 @@ nix run github:harivansh-afk/deskctl -- --help
 nix profile install github:harivansh-afk/deskctl
 ```
 
-### Build from source
+### Rust
 
 ```sh
 git clone https://github.com/harivansh-afk/deskctl
@@ -62,17 +54,6 @@ Source builds on Linux require:
 - `pkg-config`
 - X11 development libraries such as `libx11-dev` and `libxtst-dev`
 
-## Skill install
-
-The repo skill lives under `skills/deskctl`, so `skills` can install it
-directly from this GitHub repo. It is designed around the same observe -> wait
--> act -> verify loop as the CLI. `-g` installs it globally; omit that flag if
-you want a project-local install.
-
-```sh
-npx skills add harivansh-afk/deskctl -s deskctl
-```
-
 ## Runtime requirements
 
 - Linux with an active X11 session
@@ -83,9 +64,9 @@ npx skills add harivansh-afk/deskctl -s deskctl
 
 The binary itself only depends on the standard Linux glibc runtime.
 
-## First troubleshooting step
+## Verification
 
-If setup fails, start here:
+If setup fails for any reason start here:
 
 ```sh
 deskctl doctor
