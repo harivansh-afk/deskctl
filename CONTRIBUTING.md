@@ -35,10 +35,15 @@ make lint
 make test-unit
 make test-integration
 make site-format-check
+make cargo-publish-dry-run
+make npm-package-check
+make nix-flake-check
+make dist-validate
 make validate
 ```
 
 `make validate` runs the full Phase 2 validation stack. It requires Linux, `xvfb-run`, and site dependencies to be installed.
+`make dist-validate` runs the distribution validation stack. It requires `npm`, `nix`, and Linux for the full npm runtime smoke path.
 
 ## Pre-commit Hooks
 
@@ -59,6 +64,19 @@ The hook config intentionally stays small:
 - Rust files use default `rustfmt`
 - Site files reuse the existing `site/` Prettier setup
 - Slower checks stay in CI or `make validate`
+
+## Distribution Work
+
+Distribution support currently ships through:
+
+- crate: `deskctl`
+- npm package: `deskctl-cli`
+- repo flake: `flake.nix`
+- command name on every channel: `deskctl`
+
+For maintainer release and publish steps, see [docs/releasing.md](docs/releasing.md).
+
+Source-build and packaging work should keep Docker as a local Linux build convenience, not as the canonical registry release path.
 
 ## Integration Tests
 

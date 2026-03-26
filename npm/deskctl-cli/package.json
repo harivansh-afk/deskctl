@@ -1,0 +1,36 @@
+{
+  "name": "deskctl-cli",
+  "version": "0.1.5",
+  "description": "Installable deskctl CLI package for Linux X11 agents",
+  "license": "MIT",
+  "homepage": "https://github.com/harivansh-afk/deskctl",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/harivansh-afk/deskctl.git"
+  },
+  "bugs": {
+    "url": "https://github.com/harivansh-afk/deskctl/issues"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "bin": {
+    "deskctl": "bin/deskctl.js"
+  },
+  "files": [
+    "README.md",
+    "bin",
+    "scripts"
+  ],
+  "scripts": {
+    "postinstall": "node scripts/postinstall.js",
+    "validate": "node scripts/validate-package.js"
+  },
+  "keywords": [
+    "deskctl",
+    "x11",
+    "desktop",
+    "automation",
+    "cli"
+  ]
+}

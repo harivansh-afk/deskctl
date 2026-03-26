@@ -5,6 +5,19 @@ edition = "2021"
 description = "X11 desktop control CLI for agents"
 license = "MIT"
 repository = "https://github.com/harivansh-afk/deskctl"
+homepage = "https://github.com/harivansh-afk/deskctl"
+readme = "README.md"
+keywords = ["x11", "desktop", "automation", "cli", "agent"]
+categories = ["command-line-utilities"]
+rust-version = "1.75"
+include = [
+  "/Cargo.toml",
+  "/Cargo.lock",
+  "/README.md",
+  "/LICENCE",
+  "/assets/**",
+  "/src/**",
+]
 
 [dependencies]
 clap = { version = "4", features = ["derive", "env"] }
