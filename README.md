@@ -44,14 +44,22 @@ deskctl doctor
 # See the desktop
 deskctl snapshot
 
+# Query focused runtime state
+deskctl get active-window
+deskctl get monitors
+
 # Click a window
 deskctl click @w1
 
 # Type text
 deskctl type "hello world"
 
-# Focus by name
-deskctl focus "firefox"
+# Wait for a window or focus transition
+deskctl wait window --selector 'title=Firefox' --timeout 10
+deskctl wait focus --selector 'class=firefox' --timeout 5
+
+# Focus by explicit selector
+deskctl focus 'title=Firefox'
 ```
 
 ## Architecture
@@ -92,6 +100,74 @@ deskctl doctor
 - `@wN` refs are short-lived handles assigned by `snapshot` and `list-windows`
 - `--json` output includes a stable `window_id` for programmatic targeting within the current daemon session
 - `list-windows` is a cheap read-only operation and does not capture or write a screenshot
+
+## Read and Wait Surface
+
+The grouped runtime reads are:
+
+```bash
+deskctl get active-window
+deskctl get monitors
+deskctl get version
+deskctl get systeminfo
+```
+
+The grouped runtime waits are:
+
+```bash
+deskctl wait window --selector 'title=Firefox' --timeout 10
+deskctl wait focus --selector 'id=win3' --timeout 5
+```
+
+Successful `get active-window`, `wait window`, and `wait focus` responses return a `window` payload with:
+- `ref_id`
+- `window_id`
+- `title`
+- `app_name`
+- geometry (`x`, `y`, `width`, `height`)
+- state flags (`focused`, `minimized`)
+
+`get monitors` returns:
+- `count`
+- `monitors[]` with geometry and primary/automatic flags
+
+`get version` returns:
+- `version`
+- `backend`
+
+`get systeminfo` stays runtime-scoped and returns:
+- `backend`
+- `display`
+- `session_type`
+- `session`
+- `socket_path`
+- `screen`
+- `monitor_count`
+- `monitors`
+
+Wait timeout and selector failures are structured in `--json` mode so agents can recover without string parsing.
+
+## Selector Contract
+
+Explicit selector modes:
+
+```bash
+ref=w1
+id=win1
+title=Firefox
+class=firefox
+focused
+```
+
+Legacy refs remain supported:
+
+```bash
+@w1
+w1
+win1
+```
+
+Bare selectors such as `firefox` are still supported as fuzzy substring matches, but they now fail on ambiguity and return candidate windows instead of silently picking the first match.
 
 ## Support Boundary
 

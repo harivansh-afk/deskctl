@@ -2,6 +2,7 @@ use anyhow::{Context, Result};
 use enigo::{Axis, Button, Coordinate, Direction, Enigo, Key, Keyboard, Mouse, Settings};
 use image::RgbaImage;
 use x11rb::connection::Connection;
+use x11rb::protocol::randr::ConnectionExt as RandrConnectionExt;
 use x11rb::protocol::xproto::{
     Atom, AtomEnum, ClientMessageData, ClientMessageEvent, ConfigureWindowAux,
     ConnectionExt as XprotoConnectionExt, EventMask, GetPropertyReply, ImageFormat, ImageOrder,
@@ -9,7 +10,7 @@ use x11rb::protocol::xproto::{
 };
 use x11rb::rust_connection::RustConnection;
 
-use crate::backend::BackendWindow;
+use crate::backend::{BackendMonitor, BackendWindow};
 
 struct Atoms {
     client_list_stacking: Atom,
@@ -101,6 +102,74 @@ impl X11Backend {
         }
 
         Ok(window_infos)
+    }
+
+    fn active_window_info(&self) -> Result<Option<BackendWindow>> {
+        let Some(active_window) = self.active_window()? else {
+            return Ok(None);
+        };
+
+        let title = self.window_title(active_window).unwrap_or_default();
+        let app_name = self.window_app_name(active_window).unwrap_or_default();
+        if title.is_empty() && app_name.is_empty() {
+            return Ok(None);
+        }
+
+        let (x, y, width, height) = self.window_geometry(active_window)?;
+        let minimized = self.window_is_minimized(active_window).unwrap_or(false);
+        Ok(Some(BackendWindow {
+            native_id: active_window,
+            title,
+            app_name,
+            x,
+            y,
+            width,
+            height,
+            focused: true,
+            minimized,
+        }))
+    }
+
+    fn collect_monitors(&self) -> Result<Vec<BackendMonitor>> {
+        let reply = self
+            .conn
+            .randr_get_monitors(self.root, true)?
+            .reply()
+            .context("Failed to query RANDR monitors")?;
+
+        let mut monitors = Vec::with_capacity(reply.monitors.len());
+        for (index, monitor) in reply.monitors.into_iter().enumerate() {
+            monitors.push(BackendMonitor {
+                name: self
+                    .atom_name(monitor.name)
+                    .unwrap_or_else(|_| format!("monitor{}", index + 1)),
+                x: i32::from(monitor.x),
+                y: i32::from(monitor.y),
+                width: u32::from(monitor.width),
+                height: u32::from(monitor.height),
+                width_mm: monitor.width_in_millimeters,
+                height_mm: monitor.height_in_millimeters,
+                primary: monitor.primary,
+                automatic: monitor.automatic,
+            });
+        }
+
+        if monitors.is_empty() {
+            let (width, height) = self.root_geometry()?;
+            monitors.push(BackendMonitor {
+                name: "screen".to_string(),
+                x: 0,
+                y: 0,
+                width,
+                height,
+                width_mm: 0,
+                height_mm: 0,
+                primary: true,
+                automatic: true,
+            });
+        }
+
+        Ok(monitors)
     }
 
     fn capture_root_image(&self) -> Result<RgbaImage> {
@@ -224,11 +293,43 @@ impl X11Backend {
             .reply()
             .with_context(|| format!("Failed to read property {property} from window {window}"))
     }
+
+    fn atom_name(&self, atom: Atom) -> Result<String> {
+        self.conn
+            .get_atom_name(atom)?
+            .reply()
+            .map(|reply| String::from_utf8_lossy(&reply.name).to_string())
+            .with_context(|| format!("Failed to read atom name for {atom}"))
+    }
 }
 
 impl super::DesktopBackend for X11Backend {
     fn list_windows(&mut self) -> Result<Vec<BackendWindow>> {
         self.collect_window_infos()
+    }
+
+    fn active_window(&mut self) -> Result<Option<BackendWindow>> {
+        self.active_window_info()
+    }
+
+    fn list_monitors(&self) -> Result<Vec<BackendMonitor>> {
+        match self.collect_monitors() {
+            Ok(monitors) => Ok(monitors),
+            Err(_) => {
+                let (width, height) = self.root_geometry()?;
+                Ok(vec![BackendMonitor {
+                    name: "screen".to_string(),
+                    x: 0,
+                    y: 0,
+                    width,
+                    height,
+                    width_mm: 0,
+                    height_mm: 0,
+                    primary: true,
+                    automatic: true,
+                }])
+            }
+        }
     }
 
     fn capture_screenshot(&mut self) -> Result<RgbaImage> {
@@ -451,6 +552,10 @@ impl super::DesktopBackend for X11Backend {
             .spawn()
             .with_context(|| format!("Failed to launch: {command}"))?;
         Ok(child.id())
+    }
+
+    fn backend_name(&self) -> &'static str {
+        "x11"
     }
 }
 

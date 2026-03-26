@@ -218,3 +218,7 @@ pub fn successful_json_response(output: Output) -> Result<serde_json::Value> {
 
     serde_json::from_slice(&output.stdout).context("Failed to parse JSON output from deskctl")
 }
+
+pub fn json_response(output: &Output) -> Result<serde_json::Value> {
+    serde_json::from_slice(&output.stdout).context("Failed to parse JSON output from deskctl")
+}
