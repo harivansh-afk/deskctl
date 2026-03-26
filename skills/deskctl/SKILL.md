@@ -21,7 +21,7 @@ deskctl snapshot --annotate
 If `deskctl` was installed through npm, refresh it later with:
 
 ```bash
-deskctl upgrade
+deskctl upgrade --yes
 ```
 
 ## Agent loop

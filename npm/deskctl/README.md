@@ -20,6 +20,12 @@ To upgrade version:
 deskctl upgrade
 ```
 
+For non-interactive use:
+
+```bash
+deskctl upgrade --yes
+```
+
 One-shot usage is also supported:
 
 ```bash

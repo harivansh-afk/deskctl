@@ -27,11 +27,12 @@ deskctl get-screen-size
 deskctl get-mouse-position
 ```
 
-`doctor` checks the runtime before daemon startup. `upgrade` refreshes an npm
-install and returns channel-specific guidance for other install methods.
-`snapshot` produces a screenshot plus window refs. `list-windows` is the same
-window tree without the side effect of writing a screenshot. The grouped `get`
-commands are the preferred read surface for focused state queries.
+`doctor` checks the runtime before daemon startup. `upgrade` checks for a newer
+published version, shows a short confirmation prompt when an update is
+available, and supports `--yes` for non-interactive use. `snapshot` produces a
+screenshot plus window refs. `list-windows` is the same window tree without the
+side effect of writing a screenshot. The grouped `get` commands are the
+preferred read surface for focused state queries.
 
 ## Wait for state transitions
 
