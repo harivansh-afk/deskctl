@@ -70,18 +70,6 @@ main {
   max-width: 42rem;
 }
 
-.badges {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.6rem;
-  margin-bottom: 1.25rem;
-}
-
-.badges a,
-.badges img {
-  display: block;
-}
-
 header {
   display: flex;
   align-items: center;
