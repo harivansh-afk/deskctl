@@ -28,10 +28,12 @@ permissions:
 jobs:
   publish:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: ${{ inputs.tag }}
+          fetch-depth: 0
 
       - uses: dtolnay/rust-toolchain@stable
 
@@ -43,29 +45,46 @@ jobs:
       - name: Install system dependencies
         run: sudo apt-get update && sudo apt-get install -y libx11-dev libxtst-dev
 
-      - name: Verify release exists and contains canonical assets
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Compute next version
+        id: version
         run: |
-          gh release view "${{ inputs.tag }}" --json assets --jq '.assets[].name' > /tmp/release-assets.txt
-          grep -Fx "deskctl-linux-x86_64" /tmp/release-assets.txt >/dev/null
-          grep -Fx "checksums.txt" /tmp/release-assets.txt >/dev/null
+          CURRENT=$(grep '^version' Cargo.toml | head -1 | sed 's/.*"\(.*\)"/\1/')
+          IFS='.' read -r MAJOR MINOR PATCH <<< "$CURRENT"
 
-      - name: Verify versions align with tag
+          case "${{ inputs.bump }}" in
+            major) MAJOR=$((MAJOR + 1)); MINOR=0; PATCH=0 ;;
+            minor) MINOR=$((MINOR + 1)); PATCH=0 ;;
+            patch) PATCH=$((PATCH + 1)) ;;
+          esac
+
+          NEW="${MAJOR}.${MINOR}.${PATCH}"
+          TAG="v${NEW}"
+
+          echo "version=${NEW}" >> "$GITHUB_OUTPUT"
+          echo "tag=${TAG}" >> "$GITHUB_OUTPUT"
+          echo "Bumping ${CURRENT} -> ${NEW} (${TAG})"
+
+      - name: Bump versions
         run: |
-          TAG="${{ inputs.tag }}"
-          VERSION="${TAG#v}"
-          CARGO_VERSION=$(grep '^version' Cargo.toml | head -1 | sed 's/.*"\(.*\)"/\1/')
-          NPM_VERSION=$(node -p 'require("./npm/deskctl/package.json").version')
+          NEW="${{ steps.version.outputs.version }}"
+          CURRENT=$(grep '^version' Cargo.toml | head -1 | sed 's/.*"\(.*\)"/\1/')
+          sed -i "0,/^version = \"${CURRENT}\"/s//version = \"${NEW}\"/" Cargo.toml
+          node -e 'const fs=require("node:fs"); const p="npm/deskctl/package.json"; const pkg=JSON.parse(fs.readFileSync(p,"utf8")); pkg.version=process.argv[1]; fs.writeFileSync(p, JSON.stringify(pkg, null, 2)+"\n");' "$NEW"
+          cargo generate-lockfile
 
-          test "$VERSION" = "$CARGO_VERSION"
-          test "$VERSION" = "$NPM_VERSION"
+      - name: Commit, tag, and push
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add Cargo.toml Cargo.lock npm/deskctl/package.json
+          git commit -m "release: ${{ steps.version.outputs.tag }} [skip ci]"
+          git tag "${{ steps.version.outputs.tag }}"
+          git push origin main --tags
 
       - name: Check current published state
         id: published
         run: |
-          VERSION="${{ inputs.tag }}"
-          VERSION="${VERSION#v}"
+          VERSION="${{ steps.version.outputs.version }}"
 
           if npm view "deskctl@${VERSION}" version >/dev/null 2>&1; then
             echo "npm=true" >> "$GITHUB_OUTPUT"
@@ -102,6 +121,7 @@ jobs:
 
       - name: Summary
         run: |
-          echo "tag=${{ inputs.tag }}"
+          echo "tag=${{ steps.version.outputs.tag }}"
+          echo "bump=${{ inputs.bump }}"
           echo "npm_already_published=${{ steps.published.outputs.npm }}"
           echo "crates_already_published=${{ steps.published.outputs.crates }}"
