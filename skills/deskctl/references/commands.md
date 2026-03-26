@@ -7,6 +7,7 @@ runtime contract.
 
 ```bash
 deskctl doctor
+deskctl upgrade
 deskctl snapshot
 deskctl snapshot --annotate
 deskctl list-windows
