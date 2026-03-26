@@ -90,6 +90,14 @@ deskctl daemon status         # Check daemon status
 - `--session NAME` : Session name for multiple daemon instances (default: "default")
 - `--socket PATH` : Custom Unix socket path
 
+## Output Contract
+
+- Prefer `--json` when an agent needs strict parsing.
+- Use `window_id` for stable targeting inside a live daemon session.
+- Use `ref_id` / `@wN` for quick short-lived follow-up actions after `snapshot` or `list-windows`.
+- Structured JSON failures expose machine-usable `kind` values for selector and wait failures.
+- The exact text formatting is intentionally compact but not the parsing contract. See `docs/runtime-output.md` for the stable field policy.
+
 ## Window Refs
 
 After `snapshot` or `list-windows`, windows are assigned short refs:

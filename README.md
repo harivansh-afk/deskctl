@@ -100,6 +100,7 @@ deskctl doctor
 - `@wN` refs are short-lived handles assigned by `snapshot` and `list-windows`
 - `--json` output includes a stable `window_id` for programmatic targeting within the current daemon session
 - `list-windows` is a cheap read-only operation and does not capture or write a screenshot
+- the stable runtime JSON/error contract is documented in [docs/runtime-output.md](docs/runtime-output.md)
 
 ## Read and Wait Surface
 
@@ -146,6 +147,16 @@ Successful `get active-window`, `wait window`, and `wait focus` responses return
 - `monitors`
 
 Wait timeout and selector failures are structured in `--json` mode so agents can recover without string parsing.
+
+## Output Policy
+
+Text mode is compact and follow-up-oriented, but JSON is the parsing contract.
+
+- use `--json` when an agent needs strict parsing
+- rely on `window_id`, selector-related fields, grouped read payloads, and structured error `kind` values for stable automation
+- treat monitor naming, incidental whitespace, and default screenshot file names as best-effort
+
+See [docs/runtime-output.md](docs/runtime-output.md) for the exact stable-vs-best-effort breakdown.
 
 ## Selector Contract
 
