@@ -1,6 +1,6 @@
 [package]
 name = "deskctl"
-version = "0.1.10"
+version = "0.1.11"
 edition = "2021"
 description = "X11 desktop control CLI for agents"
 license = "MIT"
