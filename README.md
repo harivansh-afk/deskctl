@@ -1,6 +1,6 @@
 # deskctl
 
-[![npm](https://img.shields.io/npm/v/deskctl-cli?label=npm)](https://www.npmjs.com/package/deskctl-cli)
+[![npm](https://img.shields.io/npm/v/deskctl?label=npm)](https://www.npmjs.com/package/deskctl)
 [![release](https://img.shields.io/github/v/release/harivansh-afk/deskctl?label=release)](https://github.com/harivansh-afk/deskctl/releases)
 [![runtime](https://img.shields.io/badge/runtime-linux--x11-111827)](#support-boundary)
 [![skill](https://img.shields.io/badge/skills.sh-deskctl-111827)](skills/deskctl)
@@ -10,7 +10,7 @@ Non-interactive desktop control for AI agents on Linux X11.
 ## Install
 
 ```bash
-npm install -g deskctl-cli
+npm install -g deskctl
 deskctl doctor
 deskctl snapshot --annotate
 ```
@@ -18,10 +18,11 @@ deskctl snapshot --annotate
 One-shot execution also works:
 
 ```bash
-npx deskctl-cli --help
+npx deskctl --help
 ```
 
-`deskctl-cli` installs the `deskctl` command by downloading the matching GitHub Release asset for the supported runtime target.
+`deskctl` installs the command by downloading the matching GitHub Release asset for the supported runtime target.
+
 
 ## Installable skill
 

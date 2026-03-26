@@ -70,7 +70,7 @@ The hook config intentionally stays small:
 Distribution support currently ships through:
 
 - crate: `deskctl`
-- npm package: `deskctl-cli`
+- npm package: `deskctl`
 - repo flake: `flake.nix`
 - command name on every channel: `deskctl`
 

@@ -5,5 +5,5 @@ secret/
 .claude/
 .codex/
 openspec/
-npm/deskctl-cli/vendor/
-npm/deskctl-cli/*.tgz
+npm/deskctl/vendor/
+npm/deskctl/*.tgz

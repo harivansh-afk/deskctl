@@ -1,7 +1,7 @@
 {
-  "name": "deskctl-cli",
+  "name": "deskctl",
   "version": "0.1.6",
-  "description": "Installable deskctl CLI package for Linux X11 agents",
+  "description": "Installable deskctl package for Linux X11 agents",
   "license": "MIT",
   "homepage": "https://github.com/harivansh-afk/deskctl",
   "repository": {

@@ -44,6 +44,6 @@ async function main() {
 }
 
 main().catch((error) => {
-  console.error(`deskctl-cli install failed: ${error.message}`);
+  console.error(`deskctl install failed: ${error.message}`);
   process.exit(1);
 });

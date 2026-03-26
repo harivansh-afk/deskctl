@@ -38,10 +38,10 @@ npm-package-check:
 		echo "npm is required for npm packaging validation."; \
 		exit 1; \
 	fi
-	node npm/deskctl-cli/scripts/validate-package.js
+	node npm/deskctl/scripts/validate-package.js
 	rm -rf tmp/npm-pack tmp/npm-install
 	mkdir -p tmp/npm-pack tmp/npm-install/bin
-	npm pack ./npm/deskctl-cli --pack-destination ./tmp/npm-pack >/dev/null
+	npm pack ./npm/deskctl --pack-destination ./tmp/npm-pack >/dev/null
 	@if [ "$$(uname -s)" != "Linux" ]; then \
 		echo "Skipping npm package runtime smoke test on non-Linux host."; \
 	else \

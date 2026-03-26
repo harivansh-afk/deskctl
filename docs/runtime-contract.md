@@ -68,5 +68,3 @@ Treat these as useful but non-contractual:
 - incidental text formatting in non-JSON mode
 - default screenshot file names when no explicit path was provided
 - environment-dependent ordering details from the window manager
-
-For the full repo copy, see `docs/runtime-contract.md`.

@@ -17,7 +17,7 @@ function main() {
         `Expected: ${binaryPath}`,
         `Package version: ${pkg.version}`,
         `Release tag: ${releaseTag(pkg)}`,
-        "Try reinstalling deskctl-cli or check that your target is supported."
+        "Try reinstalling deskctl or check that your target is supported."
       ].join("\n")
     );
     process.exit(1);
