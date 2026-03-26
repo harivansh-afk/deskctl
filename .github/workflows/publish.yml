@@ -3,15 +3,19 @@ name: Publish Registries
 on:
   workflow_dispatch:
     inputs:
-      tag:
-        description: Release tag to publish (for example v0.1.5)
+      bump:
+        description: Version bump type
         required: true
-        type: string
+        type: choice
+        options:
+          - patch
+          - minor
+          - major
       publish_npm:
         description: Publish deskctl to npm
         required: true
         type: boolean
-        default: false
+        default: true
       publish_crates:
         description: Publish deskctl to crates.io
         required: true
