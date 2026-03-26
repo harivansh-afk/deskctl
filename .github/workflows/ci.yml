@@ -10,6 +10,23 @@ on:
   push:
     branches: [main]
   workflow_dispatch:
+    inputs:
+      bump:
+        description: Version bump type (only for workflow_dispatch)
+        type: choice
+        options:
+          - patch
+          - minor
+          - major
+        default: patch
+      publish_npm:
+        description: Publish to npm
+        type: boolean
+        default: true
+      publish_crates:
+        description: Publish to crates.io
+        type: boolean
+        default: false
 
 permissions:
   contents: write
@@ -52,13 +69,34 @@ jobs:
             echo "rust=${{ steps.filter.outputs.rust }}" >> "$GITHUB_OUTPUT"
           fi
 
-      - name: Read current version
+      - name: Calculate next version
         id: version
         if: github.event_name != 'pull_request' && steps.check.outputs.rust == 'true'
         run: |
-          VERSION=$(grep '^version' Cargo.toml | head -1 | sed 's/.*"\(.*\)"/\1/')
-          echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
-          echo "tag=v${VERSION}" >> "$GITHUB_OUTPUT"
+          CURRENT=$(grep '^version' Cargo.toml | head -1 | sed 's/.*"\(.*\)"/\1/')
+          IFS='.' read -r MAJOR MINOR PATCH <<< "$CURRENT"
+
+          BUMP="${{ inputs.bump || 'patch' }}"
+          case "$BUMP" in
+            major) MAJOR=$((MAJOR + 1)); MINOR=0; PATCH=0 ;;
+            minor) MINOR=$((MINOR + 1)); PATCH=0 ;;
+            patch)
+              LATEST=$(git tag -l "v${MAJOR}.${MINOR}.*" | sort -V | tail -1)
+              if [ -z "$LATEST" ]; then
+                NEW_PATCH=$PATCH
+              else
+                LATEST_VER="${LATEST#v}"
+                IFS='.' read -r _ _ LATEST_PATCH <<< "$LATEST_VER"
+                NEW_PATCH=$((LATEST_PATCH + 1))
+              fi
+              PATCH=$NEW_PATCH
+              ;;
+          esac
+
+          NEW="${MAJOR}.${MINOR}.${PATCH}"
+          echo "version=${NEW}" >> "$GITHUB_OUTPUT"
+          echo "tag=v${NEW}" >> "$GITHUB_OUTPUT"
+          echo "Computed version: ${NEW} (v${NEW})"
 
   validate:
     name: Validate
@@ -177,10 +215,53 @@ jobs:
           path: target/release/deskctl
           retention-days: 7
 
+  update-manifests:
+    name: Update Manifests
+    needs: [changes, build]
+    if: github.event_name != 'pull_request' && needs.changes.outputs.rust == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Update versions
+        run: |
+          CURRENT=$(grep '^version' Cargo.toml | head -1 | sed 's/.*"\(.*\)"/\1/')
+          NEW="${{ needs.changes.outputs.version }}"
+          if [ "$CURRENT" != "$NEW" ]; then
+            sed -i "0,/^version = \"${CURRENT}\"/s//version = \"${NEW}\"/" Cargo.toml
+            cargo generate-lockfile
+          fi
+          node -e '
+            const fs = require("node:fs");
+            const p = "npm/deskctl/package.json";
+            const pkg = JSON.parse(fs.readFileSync(p, "utf8"));
+            pkg.version = process.argv[1];
+            fs.writeFileSync(p, JSON.stringify(pkg, null, 2) + "\n");
+          ' "$NEW"
+
+      - name: Commit, tag, and push
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add Cargo.toml Cargo.lock npm/deskctl/package.json
+          if ! git diff --cached --quiet; then
+            git commit -m "release: ${{ needs.changes.outputs.tag }} [skip ci]"
+          fi
+          git tag "${{ needs.changes.outputs.tag }}"
+          git push origin main --tags
+
   release:
     name: Release
-    needs: [changes, build]
-    if: github.event_name != 'pull_request'
+    needs: [changes, build, update-manifests]
+    if: github.event_name != 'pull_request' && needs.changes.outputs.rust == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -209,3 +290,53 @@ jobs:
               artifacts/deskctl-linux-x86_64 \
               artifacts/checksums.txt
           fi
+
+  publish:
+    name: Publish
+    needs: [changes, update-manifests, release]
+    if: github.event_name != 'pull_request' && needs.changes.outputs.rust == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.changes.outputs.tag }}
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          registry-url: https://registry.npmjs.org
+
+      - name: Install system dependencies
+        run: sudo apt-get update && sudo apt-get install -y libx11-dev libxtst-dev
+
+      - name: Check current published state
+        id: published
+        run: |
+          VERSION="${{ needs.changes.outputs.version }}"
+          if npm view "deskctl@${VERSION}" version >/dev/null 2>&1; then
+            echo "npm=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "npm=false" >> "$GITHUB_OUTPUT"
+          fi
+          if curl -fsSL "https://crates.io/api/v1/crates/deskctl/${VERSION}" >/dev/null 2>&1; then
+            echo "crates=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "crates=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Validate npm package
+        run: node npm/deskctl/scripts/validate-package.js
+
+      - name: Publish npm
+        if: steps.published.outputs.npm != 'true'
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: npm publish ./npm/deskctl --access public
+
+      - name: Publish crates.io
+        if: inputs.publish_crates && steps.published.outputs.crates != 'true'
+        env:
+          CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
+        run: cargo publish --locked
