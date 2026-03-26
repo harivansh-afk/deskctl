@@ -1,0 +1,102 @@
+name: Publish Registries
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Release tag to publish (for example v0.1.5)
+        required: true
+        type: string
+      publish_npm:
+        description: Publish deskctl-cli to npm
+        required: true
+        type: boolean
+        default: false
+      publish_crates:
+        description: Publish deskctl to crates.io
+        required: true
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.tag }}
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install system dependencies
+        run: sudo apt-get update && sudo apt-get install -y libx11-dev libxtst-dev
+
+      - name: Verify release exists and contains canonical assets
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release view "${{ inputs.tag }}" --json assets --jq '.assets[].name' > /tmp/release-assets.txt
+          grep -Fx "deskctl-linux-x86_64" /tmp/release-assets.txt >/dev/null
+          grep -Fx "checksums.txt" /tmp/release-assets.txt >/dev/null
+
+      - name: Verify versions align with tag
+        run: |
+          TAG="${{ inputs.tag }}"
+          VERSION="${TAG#v}"
+          CARGO_VERSION=$(grep '^version' Cargo.toml | head -1 | sed 's/.*"\(.*\)"/\1/')
+          NPM_VERSION=$(node -p 'require("./npm/deskctl-cli/package.json").version')
+
+          test "$VERSION" = "$CARGO_VERSION"
+          test "$VERSION" = "$NPM_VERSION"
+
+      - name: Check current published state
+        id: published
+        run: |
+          VERSION="${{ inputs.tag }}"
+          VERSION="${VERSION#v}"
+
+          if npm view "deskctl-cli@${VERSION}" version >/dev/null 2>&1; then
+            echo "npm=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "npm=false" >> "$GITHUB_OUTPUT"
+          fi
+
+          if curl -fsSL "https://crates.io/api/v1/crates/deskctl/${VERSION}" >/dev/null 2>&1; then
+            echo "crates=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "crates=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Validate npm package
+        run: |
+          mkdir -p ./tmp/npm-pack
+          node npm/deskctl-cli/scripts/validate-package.js
+          npm pack ./npm/deskctl-cli --pack-destination ./tmp/npm-pack >/dev/null
+
+      - name: Validate crate publish path
+        run: cargo publish --dry-run --locked
+
+      - name: Publish npm
+        if: inputs.publish_npm && steps.published.outputs.npm != 'true'
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: npm publish ./npm/deskctl-cli --access public
+
+      - name: Publish crates.io
+        if: inputs.publish_crates && steps.published.outputs.crates != 'true'
+        env:
+          CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
+        run: cargo publish --locked
+
+      - name: Summary
+        run: |
+          echo "tag=${{ inputs.tag }}"
+          echo "npm_already_published=${{ steps.published.outputs.npm }}"
+          echo "crates_already_published=${{ steps.published.outputs.crates }}"

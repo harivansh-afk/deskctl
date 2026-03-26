@@ -1,4 +1,4 @@
-.PHONY: fmt fmt-check lint test-unit test-integration site-format-check validate
+.PHONY: fmt fmt-check lint test-unit test-integration site-format-check cargo-publish-dry-run npm-package-check nix-flake-check dist-validate validate
 
 fmt:
 	cargo fmt --all
@@ -29,5 +29,35 @@ site-format-check:
 		exit 1; \
 	fi
 	pnpm --dir site format:check
+
+cargo-publish-dry-run:
+	cargo publish --dry-run --allow-dirty --locked
+
+npm-package-check:
+	@if ! command -v npm >/dev/null 2>&1; then \
+		echo "npm is required for npm packaging validation."; \
+		exit 1; \
+	fi
+	node npm/deskctl-cli/scripts/validate-package.js
+	rm -rf tmp/npm-pack tmp/npm-install
+	mkdir -p tmp/npm-pack tmp/npm-install/bin
+	npm pack ./npm/deskctl-cli --pack-destination ./tmp/npm-pack >/dev/null
+	@if [ "$$(uname -s)" != "Linux" ]; then \
+		echo "Skipping npm package runtime smoke test on non-Linux host."; \
+	else \
+		cargo build && \
+		PACK_TGZ=$$(ls ./tmp/npm-pack/*.tgz | head -n 1) && \
+		DESKCTL_BINARY_PATH="$$(pwd)/target/debug/deskctl" npm install --prefix ./tmp/npm-install "$${PACK_TGZ}" && \
+		./tmp/npm-install/node_modules/.bin/deskctl --version; \
+	fi
+
+nix-flake-check:
+	@if ! command -v nix >/dev/null 2>&1; then \
+		echo "nix is required for flake validation."; \
+		exit 1; \
+	fi
+	nix flake check
+
+dist-validate: test-unit cargo-publish-dry-run npm-package-check nix-flake-check
 
 validate: fmt-check lint test-unit test-integration site-format-check

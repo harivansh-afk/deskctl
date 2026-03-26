@@ -4,11 +4,45 @@ Desktop control CLI for AI agents on Linux X11.
 
 ## Install
 
+### Cargo
+
 ```bash
 cargo install deskctl
 ```
 
-Build a Linux binary with Docker:
+Source builds on Linux require:
+
+- Rust 1.75+
+- `pkg-config`
+- X11 development libraries for input and windowing, typically `libx11-dev` and `libxtst-dev` on Debian/Ubuntu
+
+### npm
+
+```bash
+npm install -g deskctl-cli
+deskctl --help
+```
+
+One-shot execution is also supported:
+
+```bash
+npx deskctl-cli --help
+```
+
+`deskctl-cli` currently supports `linux-x64` and installs the `deskctl` command by downloading the matching GitHub Release asset.
+
+### Nix
+
+```bash
+nix run github:harivansh-afk/deskctl -- --help
+nix profile install github:harivansh-afk/deskctl
+```
+
+The repo flake is the supported Nix install surface in this phase.
+
+### Docker Convenience
+
+Build a Linux binary locally with Docker:
 
 ```bash
 docker compose -f docker/docker-compose.yml run --rm build
@@ -28,12 +62,11 @@ Run it on an X11 session:
 DISPLAY=:1 XDG_SESSION_TYPE=x11 ~/deskctl --json snapshot --annotate
 ```
 
-Local source build requirements:
+### Local Source Build
+
 ```bash
 cargo build
 ```
-
-At the moment there are no extra native build dependencies beyond a Rust toolchain.
 
 ## Quick Start
 
@@ -78,7 +111,7 @@ Source layout:
 ## Runtime Requirements
 
 - Linux with X11 session
-- Rust 1.75+ (for build)
+- Rust 1.75+ plus the source-build dependencies above when building from source
 
 The binary itself only links the standard glibc runtime on Linux (`libc`, `libm`, `libgcc_s`).
 
@@ -157,6 +190,16 @@ Text mode is compact and follow-up-oriented, but JSON is the parsing contract.
 - treat monitor naming, incidental whitespace, and default screenshot file names as best-effort
 
 See [docs/runtime-output.md](docs/runtime-output.md) for the exact stable-vs-best-effort breakdown.
+
+## Distribution
+
+- GitHub Releases are the canonical binary source
+- crates.io package: `deskctl`
+- npm package: `deskctl-cli`
+- installed command on every channel: `deskctl`
+- repo-owned Nix install path: `flake.nix`
+
+For maintainer publishing and release steps, see [docs/releasing.md](docs/releasing.md).
 
 ## Selector Contract
 
