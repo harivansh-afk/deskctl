@@ -28,6 +28,9 @@ on:
         type: boolean
         default: false
 
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
 permissions:
   contents: write
 
@@ -186,38 +189,12 @@ jobs:
       - name: Distribution validation
         run: make dist-validate
 
-  build:
-    name: Build Release Asset
-    needs: [changes, validate, integration, distribution]
-    if: github.event_name != 'pull_request' && needs.changes.outputs.rust == 'true'
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: dtolnay/rust-toolchain@stable
-        with:
-          components: clippy
-
-      - uses: Swatinem/rust-cache@v2
-
-      - name: Install system dependencies
-        run: sudo apt-get update && sudo apt-get install -y libx11-dev libxtst-dev
-
-      - name: Clippy
-        run: cargo clippy -- -D warnings
-
-      - name: Build
-        run: cargo build --release --locked
-
-      - uses: actions/upload-artifact@v4
-        with:
-          name: deskctl-linux-x86_64
-          path: target/release/deskctl
-          retention-days: 7
+  # --- Release pipeline: update-manifests -> build -> release -> publish ---
+  # Version bump happens BEFORE build so the binary has the correct version.
 
   update-manifests:
     name: Update Manifests
-    needs: [changes, build]
+    needs: [changes, validate, integration, distribution]
     if: github.event_name != 'pull_request' && needs.changes.outputs.rust == 'true'
     runs-on: ubuntu-latest
     steps:
@@ -257,6 +234,47 @@ jobs:
           fi
           git tag "${{ needs.changes.outputs.tag }}"
           git push origin main --tags
+
+  build:
+    name: Build Release Asset
+    needs: [changes, update-manifests]
+    if: github.event_name != 'pull_request' && needs.changes.outputs.rust == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.changes.outputs.tag }}
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy
+
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Install system dependencies
+        run: sudo apt-get update && sudo apt-get install -y libx11-dev libxtst-dev
+
+      - name: Verify version
+        run: |
+          CARGO_VER=$(grep '^version' Cargo.toml | head -1 | sed 's/.*"\(.*\)"/\1/')
+          EXPECTED="${{ needs.changes.outputs.version }}"
+          if [ "$CARGO_VER" != "$EXPECTED" ]; then
+            echo "Version mismatch: Cargo.toml=$CARGO_VER expected=$EXPECTED"
+            exit 1
+          fi
+          echo "Building version $CARGO_VER"
+
+      - name: Clippy
+        run: cargo clippy -- -D warnings
+
+      - name: Build
+        run: cargo build --release --locked
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: deskctl-linux-x86_64
+          path: target/release/deskctl
+          retention-days: 7
 
   release:
     name: Release
