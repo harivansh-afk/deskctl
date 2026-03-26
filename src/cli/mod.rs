@@ -48,13 +48,13 @@ pub enum Command {
     /// Click a window ref or coordinates
     #[command(after_help = CLICK_EXAMPLES)]
     Click {
-        /// Selector (ref=w1, id=win1, title=Firefox, class=firefox, focused) or x,y coordinates
+        /// Selector (ref=w1, id=win1, title=Chromium, class=chromium, focused) or x,y coordinates
         selector: String,
     },
     /// Double-click a window ref or coordinates
     #[command(after_help = DBLCLICK_EXAMPLES)]
     Dblclick {
-        /// Selector (ref=w1, id=win1, title=Firefox, class=firefox, focused) or x,y coordinates
+        /// Selector (ref=w1, id=win1, title=Chromium, class=chromium, focused) or x,y coordinates
         selector: String,
     },
     /// Type text into the focused window
@@ -81,19 +81,19 @@ pub enum Command {
     /// Focus a window by ref or name
     #[command(after_help = FOCUS_EXAMPLES)]
     Focus {
-        /// Selector: ref=w1, id=win1, title=Firefox, class=firefox, focused, or a fuzzy substring
+        /// Selector: ref=w1, id=win1, title=Chromium, class=chromium, focused, or a fuzzy substring
         selector: String,
     },
     /// Close a window by ref or name
     #[command(after_help = CLOSE_EXAMPLES)]
     Close {
-        /// Selector: ref=w1, id=win1, title=Firefox, class=firefox, focused, or a fuzzy substring
+        /// Selector: ref=w1, id=win1, title=Chromium, class=chromium, focused, or a fuzzy substring
         selector: String,
     },
     /// Move a window
     #[command(after_help = MOVE_WINDOW_EXAMPLES)]
     MoveWindow {
-        /// Selector: ref=w1, id=win1, title=Firefox, class=firefox, focused, or a fuzzy substring
+        /// Selector: ref=w1, id=win1, title=Chromium, class=chromium, focused, or a fuzzy substring
         selector: String,
         /// X position
         x: i32,
@@ -103,7 +103,7 @@ pub enum Command {
     /// Resize a window
     #[command(after_help = RESIZE_WINDOW_EXAMPLES)]
     ResizeWindow {
-        /// Selector: ref=w1, id=win1, title=Firefox, class=firefox, focused, or a fuzzy substring
+        /// Selector: ref=w1, id=win1, title=Chromium, class=chromium, focused, or a fuzzy substring
         selector: String,
         /// Width
         w: u32,
@@ -210,19 +210,19 @@ const SNAPSHOT_EXAMPLES: &str =
 const LIST_WINDOWS_EXAMPLES: &str =
     "Examples:\n  deskctl list-windows\n  deskctl --json list-windows";
 const CLICK_EXAMPLES: &str =
-    "Examples:\n  deskctl click @w1\n  deskctl click 'title=Firefox'\n  deskctl click 500,300";
+    "Examples:\n  deskctl click @w1\n  deskctl click 'title=Chromium'\n  deskctl click 500,300";
 const DBLCLICK_EXAMPLES: &str =
-    "Examples:\n  deskctl dblclick @w2\n  deskctl dblclick 'class=firefox'\n  deskctl dblclick 500,300";
+    "Examples:\n  deskctl dblclick @w2\n  deskctl dblclick 'class=chromium'\n  deskctl dblclick 500,300";
 const TYPE_EXAMPLES: &str =
     "Examples:\n  deskctl type \"hello world\"\n  deskctl type \"https://example.com\"";
 const PRESS_EXAMPLES: &str = "Examples:\n  deskctl press enter\n  deskctl press escape";
 const HOTKEY_EXAMPLES: &str = "Examples:\n  deskctl hotkey ctrl l\n  deskctl hotkey ctrl shift t";
 const FOCUS_EXAMPLES: &str =
-    "Examples:\n  deskctl focus @w1\n  deskctl focus 'title=Firefox'\n  deskctl focus focused";
+    "Examples:\n  deskctl focus @w1\n  deskctl focus 'title=Chromium'\n  deskctl focus focused";
 const CLOSE_EXAMPLES: &str =
-    "Examples:\n  deskctl close @w3\n  deskctl close 'id=win2'\n  deskctl close 'class=firefox'";
+    "Examples:\n  deskctl close @w3\n  deskctl close 'id=win2'\n  deskctl close 'class=chromium'";
 const MOVE_WINDOW_EXAMPLES: &str =
-    "Examples:\n  deskctl move-window @w1 100 200\n  deskctl move-window 'title=Firefox' 0 0";
+    "Examples:\n  deskctl move-window @w1 100 200\n  deskctl move-window 'title=Chromium' 0 0";
 const RESIZE_WINDOW_EXAMPLES: &str =
     "Examples:\n  deskctl resize-window @w1 1280 720\n  deskctl resize-window 'id=win2' 800 600";
 const GET_MONITORS_EXAMPLES: &str =
@@ -237,12 +237,12 @@ const GET_MOUSE_POSITION_EXAMPLES: &str =
 const DOCTOR_EXAMPLES: &str = "Examples:\n  deskctl doctor\n  deskctl --json doctor";
 const UPGRADE_EXAMPLES: &str =
     "Examples:\n  deskctl upgrade\n  deskctl upgrade --yes\n  deskctl --json upgrade --yes";
-const WAIT_WINDOW_EXAMPLES: &str = "Examples:\n  deskctl wait window --selector 'title=Firefox' --timeout 10\n  deskctl --json wait window --selector 'class=firefox' --poll-ms 100";
+const WAIT_WINDOW_EXAMPLES: &str = "Examples:\n  deskctl wait window --selector 'title=Chromium' --timeout 10\n  deskctl --json wait window --selector 'class=chromium' --poll-ms 100";
 const WAIT_FOCUS_EXAMPLES: &str = "Examples:\n  deskctl wait focus --selector 'id=win3' --timeout 5\n  deskctl wait focus --selector focused --poll-ms 200";
 const SCREENSHOT_EXAMPLES: &str =
     "Examples:\n  deskctl screenshot\n  deskctl screenshot /tmp/screen.png\n  deskctl screenshot --annotate";
 const LAUNCH_EXAMPLES: &str =
-    "Examples:\n  deskctl launch firefox\n  deskctl launch code -- --new-window";
+    "Examples:\n  deskctl launch chromium\n  deskctl launch code -- --new-window";
 const MOUSE_MOVE_EXAMPLES: &str =
     "Examples:\n  deskctl mouse move 500 300\n  deskctl mouse move 0 0";
 const MOUSE_SCROLL_EXAMPLES: &str =
@@ -277,7 +277,7 @@ pub enum WaitCmd {
 
 #[derive(Args)]
 pub struct WaitSelectorOpts {
-    /// Selector: ref=w1, id=win1, title=Firefox, class=firefox, focused, or a fuzzy substring
+    /// Selector: ref=w1, id=win1, title=Chromium, class=chromium, focused, or a fuzzy substring
     #[arg(long)]
     pub selector: String,
 
@@ -1103,8 +1103,8 @@ mod tests {
                 "windows": [{
                     "ref_id": "w1",
                     "window_id": "win1",
-                    "title": "Firefox",
-                    "app_name": "firefox",
+                    "title": "Chromium",
+                    "app_name": "chromium",
                     "x": 0,
                     "y": 0,
                     "width": 1280,
@@ -1125,37 +1125,37 @@ mod tests {
     fn action_text_includes_target_identity() {
         let lines = render_success_lines(
             &Command::Focus {
-                selector: "title=Firefox".to_string(),
+                selector: "title=Chromium".to_string(),
             },
             Some(&json!({
                 "action": "focus",
-                "window": "Firefox",
-                "title": "Firefox",
+                "window": "Chromium",
+                "title": "Chromium",
                 "ref_id": "w2",
                 "window_id": "win7"
             })),
         )
         .unwrap();
 
-        assert_eq!(lines, vec!["Focused @w2 [win7] \"Firefox\""]);
+        assert_eq!(lines, vec!["Focused @w2 [win7] \"Chromium\""]);
     }
 
     #[test]
     fn timeout_errors_render_last_observation() {
         let lines = render_error_lines(&Response::err_with_data(
-            "Timed out waiting for focus to match selector: title=Firefox",
+            "Timed out waiting for focus to match selector: title=Chromium",
             json!({
                 "kind": "timeout",
                 "wait": "focus",
-                "selector": "title=Firefox",
+                "selector": "title=Chromium",
                 "timeout_ms": 1000,
                 "last_observation": {
                     "kind": "window_not_focused",
                     "window": {
                         "ref_id": "w1",
                         "window_id": "win1",
-                        "title": "Firefox",
-                        "app_name": "firefox",
+                        "title": "Chromium",
+                        "app_name": "chromium",
                         "x": 0,
                         "y": 0,
                         "width": 1280,
@@ -1167,10 +1167,8 @@ mod tests {
             }),
         ));
 
-        assert!(lines
-            .iter()
-            .any(|line| line
-                .contains("Timed out after 1000ms waiting for focus selector title=Firefox")));
+        assert!(lines.iter().any(|line| line
+            .contains("Timed out after 1000ms waiting for focus selector title=Chromium")));
         assert!(lines
             .iter()
             .any(|line| line.contains("matching window exists but is not focused yet")));
@@ -1190,9 +1188,9 @@ mod tests {
         let summary = target_summary(&json!({
             "ref_id": "w1",
             "window_id": "win1",
-            "title": "Firefox"
+            "title": "Chromium"
         }));
-        assert_eq!(summary.as_deref(), Some("@w1 [win1] \"Firefox\""));
+        assert_eq!(summary.as_deref(), Some("@w1 [win1] \"Chromium\""));
     }
 
     #[test]

@@ -30,8 +30,8 @@ Every desktop interaction follows: **observe -> wait -> act -> verify**.
 
 ```bash
 deskctl snapshot --annotate        # observe
-deskctl wait window --selector 'title=Firefox' --timeout 10  # wait
-deskctl click 'title=Firefox'      # act
+deskctl wait window --selector 'title=Chromium' --timeout 10  # wait
+deskctl click 'title=Chromium'      # act
 deskctl snapshot                   # verify
 ```
 
@@ -42,12 +42,12 @@ See [workflows/observe-act.sh](workflows/observe-act.sh) for a reusable script. 
 ```bash
 ref=w1          # snapshot ref (short-lived)
 id=win1         # stable window ID (session-scoped)
-title=Firefox   # match by title
-class=firefox   # match by WM class
+title=Chromium   # match by title
+class=chromium   # match by WM class
 focused         # currently focused window
 ```
 
-Bare strings like `firefox` do fuzzy matching but fail on ambiguity. Prefer explicit selectors.
+Bare strings like `chromium` do fuzzy matching but fail on ambiguity. Prefer explicit selectors.
 
 ## References
 
