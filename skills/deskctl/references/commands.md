@@ -1,20 +1,22 @@
-# deskctl command guide
+# deskctl commands
+
+All commands support `--json` for machine-parseable output following the runtime contract.
 
 ## Observe
 
 ```bash
-deskctl doctor
-deskctl snapshot
-deskctl snapshot --annotate
-deskctl list-windows
-deskctl screenshot /tmp/current.png
-deskctl get active-window
-deskctl get monitors
-deskctl get version
-deskctl get systeminfo
+deskctl doctor                          # check X11 runtime and daemon health
+deskctl snapshot                        # screenshot + window list
+deskctl snapshot --annotate             # screenshot with @wN labels overlaid
+deskctl list-windows                    # window list only (no screenshot)
+deskctl screenshot /tmp/screen.png      # screenshot to explicit path
+deskctl get active-window               # focused window info
+deskctl get monitors                    # monitor geometry
+deskctl get version                     # version and backend
+deskctl get systeminfo                  # full runtime diagnostics
+deskctl get-screen-size                 # screen resolution
+deskctl get-mouse-position              # cursor coordinates
 ```
-
-Use `snapshot --annotate` when you need both the screenshot artifact and the short `@wN` labels. Use `list-windows` when you only need the window tree and do not want screenshot side effects.
 
 ## Wait
 
@@ -23,29 +25,19 @@ deskctl wait window --selector 'title=Firefox' --timeout 10
 deskctl wait focus --selector 'class=firefox' --timeout 5
 ```
 
-Wait commands return the matched window payload on success. In `--json` mode, failures include structured `kind` values so the caller can recover without string parsing.
+Returns the matched window payload on success. Failures include structured `kind` values in `--json` mode.
 
 ## Selectors
 
-Prefer explicit selectors:
-
 ```bash
-ref=w1
-id=win1
-title=Firefox
-class=firefox
-focused
+ref=w1          # snapshot ref (short-lived, from last snapshot)
+id=win1         # stable window ID (session-scoped)
+title=Firefox   # match by window title
+class=firefox   # match by WM class
+focused         # currently focused window
 ```
 
-Legacy refs still work:
-
-```bash
-@w1
-w1
-win1
-```
-
-Bare fuzzy selectors such as `firefox` are supported, but they fail on ambiguity.
+Legacy shorthand: `@w1`, `w1`, `win1`. Bare strings do fuzzy matching but fail on ambiguity.
 
 ## Act
 
@@ -58,6 +50,7 @@ deskctl press enter
 deskctl hotkey ctrl shift t
 deskctl mouse move 500 300
 deskctl mouse scroll 3
+deskctl mouse scroll 3 --axis horizontal
 deskctl mouse drag 100 100 500 500
 deskctl move-window @w1 100 120
 deskctl resize-window @w1 1280 720
@@ -65,11 +58,12 @@ deskctl close @w3
 deskctl launch firefox
 ```
 
-## Agent loop
+## Daemon
 
-The safe pattern is:
+```bash
+deskctl daemon start
+deskctl daemon stop
+deskctl daemon status
+```
 
-1. Observe with `snapshot`, `list-windows`, or `get ...`
-2. Wait for the target window if needed
-3. Act using explicit selectors or refs
-4. Snapshot again to verify the result
+The daemon starts automatically on first command. Manual control is rarely needed.
