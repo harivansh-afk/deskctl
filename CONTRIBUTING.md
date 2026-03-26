@@ -21,7 +21,7 @@ pnpm --dir site install
 - `src/` holds production code and unit tests
 - `tests/` holds integration tests
 - `tests/support/` holds shared X11 and daemon helpers for integration coverage
-- `docs/runtime-output.md` is the stable-vs-best-effort runtime output contract for agent-facing CLI work
+- `docs/runtime-contract.md` is the stable-vs-best-effort runtime output contract for agent-facing CLI work
 
 Keep integration-only helpers out of `src/`.
 
