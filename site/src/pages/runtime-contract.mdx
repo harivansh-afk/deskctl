@@ -1,0 +1,177 @@
+---
+layout: ../layouts/DocLayout.astro
+title: Runtime contract
+toc: true
+---
+
+# Runtime contract
+
+This page defines the current public output contract for `deskctl`.
+
+It is intentionally scoped to the current Linux X11 runtime surface. It does
+not promise stability for future Wayland or window-manager-specific features.
+
+## JSON envelope
+
+Every command supports `--json` and uses the same top-level envelope:
+
+```json
+{
+  "success": true,
+  "data": {},
+  "error": null
+}
+```
+
+Stable top-level fields:
+
+- `success`
+- `data`
+- `error`
+
+If `success` is `false`, the command exits non-zero in both text mode and JSON
+mode.
+
+## Stable window fields
+
+Whenever a response includes a window payload, these fields are stable:
+
+- `ref_id`
+- `window_id`
+- `title`
+- `app_name`
+- `x`
+- `y`
+- `width`
+- `height`
+- `focused`
+- `minimized`
+
+`window_id` is the public session-scoped identifier for programmatic targeting.
+`ref_id` is a short-lived convenience handle from the current ref map.
+
+## Stable grouped reads
+
+`deskctl get active-window`
+
+- stable: `data.window`
+
+`deskctl get monitors`
+
+- stable: `data.count`
+- stable: `data.monitors`
+
+Stable per-monitor fields:
+
+- `name`
+- `x`
+- `y`
+- `width`
+- `height`
+- `width_mm`
+- `height_mm`
+- `primary`
+- `automatic`
+
+`deskctl get version`
+
+- stable: `data.version`
+- stable: `data.backend`
+
+`deskctl get systeminfo`
+
+- stable: `data.backend`
+- stable: `data.display`
+- stable: `data.session_type`
+- stable: `data.session`
+- stable: `data.socket_path`
+- stable: `data.screen`
+- stable: `data.monitor_count`
+- stable: `data.monitors`
+
+## Stable waits
+
+`deskctl wait window`
+`deskctl wait focus`
+
+- stable: `data.wait`
+- stable: `data.selector`
+- stable: `data.elapsed_ms`
+- stable: `data.window`
+
+## Stable selector-driven action fields
+
+When selector-driven actions return resolved window data, these fields are
+stable when present:
+
+- `data.ref_id`
+- `data.window_id`
+- `data.title`
+- `data.selector`
+
+This applies to:
+
+- `click`
+- `dblclick`
+- `focus`
+- `close`
+- `move-window`
+- `resize-window`
+
+## Stable artifact fields
+
+For `snapshot` and `screenshot`:
+
+- stable: `data.screenshot`
+
+When a command also returns windows, `data.windows` uses the stable window
+payload documented above.
+
+## Stable structured error kinds
+
+When a command fails with structured JSON data, these error kinds are stable:
+
+- `selector_not_found`
+- `selector_ambiguous`
+- `selector_invalid`
+- `timeout`
+- `not_found`
+- `window_not_focused` in `data.last_observation.kind` or an equivalent wait
+  observation payload
+
+Stable structured failure fields include:
+
+- `data.kind`
+- `data.selector`
+- `data.mode`
+- `data.candidates`
+- `data.message`
+- `data.wait`
+- `data.timeout_ms`
+- `data.poll_ms`
+- `data.last_observation`
+
+## Best-effort fields
+
+These values are useful but environment-dependent and should not be treated as
+strict parsing guarantees:
+
+- exact monitor naming conventions
+- EWMH/window-manager-dependent ordering details
+- cosmetic text formatting in non-JSON mode
+- default screenshot file names when no explicit path was provided
+- stderr wording outside the structured `kind` classifications above
+
+## Text mode expectations
+
+Text mode is intended to stay compact and follow-up-useful.
+
+The exact whitespace and alignment are not stable. The stable behavioral
+expectations are:
+
+- important reads print actionable identifiers or geometry
+- selector failures print enough detail to recover without `--json`
+- artifact-producing commands print the artifact path
+- window listings print both `@wN` refs and `window_id` values
+
+If you need strict parsing, use `--json`.

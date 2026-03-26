@@ -8,17 +8,49 @@ import DocLayout from "../layouts/DocLayout.astro";
     <img src="/favicon.svg" alt="" width="40" height="40" />
   </header>
 
-  <p>
-    Desktop control CLI for AI agents on Linux X11. Compact JSON output for
-    agent loops. Screenshot, click, type, scroll, drag, and manage windows
-    through a fast client-daemon architecture. 100% native Rust.
+  <p class="tagline">non-interactive desktop control for AI agents</p>
+
+  <div class="badges" aria-label="package and runtime badges">
+    <a href="https://www.npmjs.com/package/deskctl-cli">
+      <img
+        src="https://img.shields.io/npm/v/deskctl-cli?label=npm"
+        alt="npm version badge"
+      />
+    </a>
+    <a href="https://github.com/harivansh-afk/deskctl/releases">
+      <img
+        src="https://img.shields.io/github/v/release/harivansh-afk/deskctl?label=release"
+        alt="github release badge"
+      />
+    </a>
+    <img
+      src="https://img.shields.io/badge/runtime-linux--x11-111827"
+      alt="linux x11 runtime badge"
+    />
+    <a href="https://www.npmjs.com/package/deskctl-cli">
+      <img
+        src="https://img.shields.io/badge/install-npm%20i%20-g%20deskctl--cli-111827"
+        alt="npm install command badge"
+      />
+    </a>
+  </div>
+
+  <p class="lede">
+    <code>deskctl</code> is a thin X11 control primitive for agent loops: diagnose
+    the runtime, observe the desktop, wait for state transitions, act deterministically,
+    then verify.
   </p>
 
-  <h2>Getting started</h2>
+  <pre><code>npm install -g deskctl-cli
+deskctl doctor
+deskctl snapshot --annotate</code></pre>
+
+  <h2>Start here</h2>
 
   <ul>
     <li><a href="/installation">Installation</a></li>
     <li><a href="/quick-start">Quick start</a></li>
+    <li><a href="/runtime-contract">Runtime contract</a></li>
   </ul>
 
   <h2>Reference</h2>
@@ -28,14 +60,27 @@ import DocLayout from "../layouts/DocLayout.astro";
     <li><a href="/architecture">Architecture</a></li>
   </ul>
 
+  <h2>Agent skill</h2>
+
+  <p>
+    There is also an installable skill for `skills.sh`-style agent runtimes:
+  </p>
+
+  <pre><code>npx skills add harivansh-afk/deskctl -s deskctl</code></pre>
+
   <h2>Links</h2>
 
   <ul>
     <li>
+      <a href="https://www.npmjs.com/package/deskctl-cli">npm package</a>
+    </li>
+    <li>
       <a href="https://github.com/harivansh-afk/deskctl">GitHub</a>
     </li>
     <li>
-      <a href="https://crates.io/crates/deskctl">crates.io</a>
+      <a href="https://github.com/harivansh-afk/deskctl/releases">
+        GitHub releases
+      </a>
     </li>
   </ul>
 </DocLayout>

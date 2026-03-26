@@ -1,21 +1,22 @@
 # deskctl commands
 
-All commands support `--json` for machine-parseable output following the runtime contract.
+All commands support `--json` for machine-parseable output following the
+runtime contract.
 
 ## Observe
 
 ```bash
-deskctl doctor                          # check X11 runtime and daemon health
-deskctl snapshot                        # screenshot + window list
-deskctl snapshot --annotate             # screenshot with @wN labels overlaid
-deskctl list-windows                    # window list only (no screenshot)
-deskctl screenshot /tmp/screen.png      # screenshot to explicit path
-deskctl get active-window               # focused window info
-deskctl get monitors                    # monitor geometry
-deskctl get version                     # version and backend
-deskctl get systeminfo                  # full runtime diagnostics
-deskctl get-screen-size                 # screen resolution
-deskctl get-mouse-position              # cursor coordinates
+deskctl doctor
+deskctl snapshot
+deskctl snapshot --annotate
+deskctl list-windows
+deskctl screenshot /tmp/screen.png
+deskctl get active-window
+deskctl get monitors
+deskctl get version
+deskctl get systeminfo
+deskctl get-screen-size
+deskctl get-mouse-position
 ```
 
 ## Wait
@@ -25,19 +26,21 @@ deskctl wait window --selector 'title=Firefox' --timeout 10
 deskctl wait focus --selector 'class=firefox' --timeout 5
 ```
 
-Returns the matched window payload on success. Failures include structured `kind` values in `--json` mode.
+Returns the matched window payload on success. Failures include structured
+`kind` values in `--json` mode.
 
 ## Selectors
 
 ```bash
-ref=w1          # snapshot ref (short-lived, from last snapshot)
-id=win1         # stable window ID (session-scoped)
-title=Firefox   # match by window title
-class=firefox   # match by WM class
-focused         # currently focused window
+ref=w1
+id=win1
+title=Firefox
+class=firefox
+focused
 ```
 
-Legacy shorthand: `@w1`, `w1`, `win1`. Bare strings do fuzzy matching but fail on ambiguity.
+Legacy shorthand: `@w1`, `w1`, `win1`. Bare strings do fuzzy matching but fail
+on ambiguity.
 
 ## Act
 
@@ -58,12 +61,5 @@ deskctl close @w3
 deskctl launch firefox
 ```
 
-## Daemon
-
-```bash
-deskctl daemon start
-deskctl daemon stop
-deskctl daemon status
-```
-
-The daemon starts automatically on first command. Manual control is rarely needed.
+The daemon starts automatically on first command. In normal usage you should
+not need to manage it directly.

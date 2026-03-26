@@ -6,166 +6,100 @@ toc: true
 
 # Commands
 
-## Snapshot
-
-Capture a screenshot and get the window tree:
+## Observe
 
 ```sh
+deskctl doctor
 deskctl snapshot
 deskctl snapshot --annotate
-```
-
-With `--annotate`, colored bounding boxes and `@wN` labels are drawn on the screenshot. Each window gets a unique color from an 8-color palette. Minimized windows are skipped.
-
-The screenshot is saved to `/tmp/deskctl-{timestamp}.png`.
-
-## Click
-
-Click the center of a window by ref, or click exact coordinates:
-
-```sh
-deskctl click @w1
-deskctl click 960,540
-```
-
-## Double click
-
-```sh
-deskctl dblclick @w1
-deskctl dblclick 500,300
-```
-
-## Type
-
-Type a string into the focused window:
-
-```sh
-deskctl type "hello world"
-```
-
-## Press
-
-Press a single key:
-
-```sh
-deskctl press enter
-deskctl press tab
-deskctl press escape
-```
-
-Supported key names: `enter`, `tab`, `escape`, `backspace`, `delete`, `space`, `up`, `down`, `left`, `right`, `home`, `end`, `pageup`, `pagedown`, `f1`-`f12`, or any single character.
-
-## Hotkey
-
-Send a key combination. List modifier keys first, then the target key:
-
-```sh
-deskctl hotkey ctrl c
-deskctl hotkey ctrl shift t
-deskctl hotkey alt f4
-```
-
-Modifier names: `ctrl`, `alt`, `shift`, `super` (also `meta` or `win`).
-
-## Mouse move
-
-Move the cursor to absolute coordinates:
-
-```sh
-deskctl mouse move 100 200
-```
-
-## Mouse scroll
-
-Scroll the mouse wheel. Positive values scroll down, negative scroll up:
-
-```sh
-deskctl mouse scroll 3
-deskctl mouse scroll -5
-deskctl mouse scroll 3 --axis horizontal
-```
-
-## Mouse drag
-
-Drag from one position to another:
-
-```sh
-deskctl mouse drag 100 200 500 600
-```
-
-## Focus
-
-Focus a window by ref or by name (case-insensitive substring match):
-
-```sh
-deskctl focus @w1
-deskctl focus "firefox"
-```
-
-## Close
-
-Close a window gracefully:
-
-```sh
-deskctl close @w2
-deskctl close "terminal"
-```
-
-## Move window
-
-Move a window to an absolute position:
-
-```sh
-deskctl move-window @w1 0 0
-deskctl move-window "firefox" 100 100
-```
-
-## Resize window
-
-Resize a window:
-
-```sh
-deskctl resize-window @w1 1280 720
-```
-
-## List windows
-
-List all windows without taking a screenshot:
-
-```sh
 deskctl list-windows
-```
-
-## Get screen size
-
-```sh
+deskctl screenshot
+deskctl screenshot /tmp/screen.png
+deskctl get active-window
+deskctl get monitors
+deskctl get version
+deskctl get systeminfo
 deskctl get-screen-size
-```
-
-## Get mouse position
-
-```sh
 deskctl get-mouse-position
 ```
 
-## Screenshot
+`doctor` checks the runtime before daemon startup. `snapshot` produces a
+screenshot plus window refs. `list-windows` is the same window tree without the
+side effect of writing a screenshot.
 
-Take a screenshot without the window tree. Optionally specify a save path:
+## Wait
 
 ```sh
-deskctl screenshot
-deskctl screenshot /tmp/my-screenshot.png
-deskctl screenshot --annotate
+deskctl wait window --selector 'title=Firefox' --timeout 10
+deskctl wait focus --selector 'id=win3' --timeout 5
+deskctl --json wait window --selector 'class=firefox' --poll-ms 100
 ```
 
-## Launch
+Wait commands return the matched window payload on success. In `--json` mode,
+timeouts and selector failures expose structured `kind` values.
 
-Launch an application:
+## Act on a window
 
 ```sh
 deskctl launch firefox
-deskctl launch code --args /path/to/project
+deskctl focus @w1
+deskctl focus 'title=Firefox'
+deskctl click @w1
+deskctl click 960,540
+deskctl dblclick @w2
+deskctl close @w3
+deskctl move-window @w1 100 120
+deskctl resize-window @w1 1280 720
 ```
+
+Selector-driven actions accept refs, explicit selector modes, or absolute
+coordinates where appropriate.
+
+## Input and mouse
+
+```sh
+deskctl type "hello world"
+deskctl press enter
+deskctl hotkey ctrl shift t
+deskctl mouse move 100 200
+deskctl mouse scroll 3
+deskctl mouse scroll 3 --axis horizontal
+deskctl mouse drag 100 200 500 600
+```
+
+Supported key names include `enter`, `tab`, `escape`, `backspace`, `delete`,
+`space`, arrow keys, paging keys, `f1` through `f12`, and any single
+character.
+
+## Launch
+
+```sh
+deskctl launch firefox
+deskctl launch code -- --new-window
+```
+
+## Selectors
+
+Prefer explicit selectors when the target matters:
+
+```sh
+ref=w1
+id=win1
+title=Firefox
+class=firefox
+focused
+```
+
+Legacy shorthand is still supported:
+
+```sh
+@w1
+w1
+win1
+```
+
+Bare strings like `firefox` are fuzzy matches. They resolve when there is one
+match and fail with candidate windows when there are multiple matches.
 
 ## Global options
 
@@ -174,3 +108,6 @@ deskctl launch code --args /path/to/project
 | `--json`           |                  | Output as JSON                                         |
 | `--socket <path>`  | `DESKCTL_SOCKET` | Path to daemon Unix socket                             |
 | `--session <name>` |                  | Session name for multiple daemons (default: `default`) |
+
+`deskctl` manages the daemon automatically. Most users never need to think
+about it beyond `--session` and `--socket`.
