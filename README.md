@@ -31,6 +31,16 @@ npx deskctl-cli --help
 
 `deskctl-cli` currently supports `linux-x64` and installs the `deskctl` command by downloading the matching GitHub Release asset.
 
+### Installable skill
+
+For `skills.sh` / agent skill ecosystems:
+
+```bash
+npx skills add harivansh-afk/deskctl -s deskctl
+```
+
+The installable skill lives under [`skills/deskctl`](skills/deskctl) and is designed for X11 sandboxes, VMs, and sandbox-agent desktop sessions. It points agents to the npm install path first so they can get `deskctl` without Cargo.
+
 ### Nix
 
 ```bash
@@ -133,7 +143,7 @@ deskctl doctor
 - `@wN` refs are short-lived handles assigned by `snapshot` and `list-windows`
 - `--json` output includes a stable `window_id` for programmatic targeting within the current daemon session
 - `list-windows` is a cheap read-only operation and does not capture or write a screenshot
-- the stable runtime JSON/error contract is documented in [docs/runtime-output.md](docs/runtime-output.md)
+- the stable runtime JSON/error contract is documented in [docs/runtime-contract.md](docs/runtime-contract.md)
 
 ## Read and Wait Surface
 
@@ -189,7 +199,7 @@ Text mode is compact and follow-up-oriented, but JSON is the parsing contract.
 - rely on `window_id`, selector-related fields, grouped read payloads, and structured error `kind` values for stable automation
 - treat monitor naming, incidental whitespace, and default screenshot file names as best-effort
 
-See [docs/runtime-output.md](docs/runtime-output.md) for the exact stable-vs-best-effort breakdown.
+See [docs/runtime-conract.md](docs/runtime-contract.md) for the exact stable-vs-best-effort breakdown.
 
 ## Distribution
 
