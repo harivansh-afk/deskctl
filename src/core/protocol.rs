@@ -58,4 +58,12 @@ impl Response {
             error: Some(msg.into()),
         }
     }
+
+    pub fn err_with_data(msg: impl Into<String>, data: Value) -> Self {
+        Self {
+            success: false,
+            data: Some(data),
+            error: Some(msg.into()),
+        }
+    }
 }

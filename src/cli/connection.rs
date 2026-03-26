@@ -79,8 +79,23 @@ fn spawn_daemon(opts: &GlobalOpts) -> Result<()> {
     Ok(())
 }
 
+fn request_read_timeout(request: &Request) -> Duration {
+    let default_timeout = Duration::from_secs(30);
+    match request.action.as_str() {
+        "wait-window" | "wait-focus" => {
+            let wait_timeout = request
+                .extra
+                .get("timeout_ms")
+                .and_then(|value| value.as_u64())
+                .unwrap_or(10_000);
+            Duration::from_millis(wait_timeout.saturating_add(5_000))
+        }
+        _ => default_timeout,
+    }
+}
+
 fn send_request_over_stream(mut stream: UnixStream, request: &Request) -> Result<Response> {
-    stream.set_read_timeout(Some(Duration::from_secs(30)))?;
+    stream.set_read_timeout(Some(request_read_timeout(request)))?;
     stream.set_write_timeout(Some(Duration::from_secs(5)))?;
 
     let json = serde_json::to_string(request)?;

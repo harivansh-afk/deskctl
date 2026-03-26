@@ -2,11 +2,13 @@ use std::sync::Arc;
 
 use anyhow::{Context, Result};
 use tokio::sync::Mutex;
+use tokio::time::{sleep, Duration, Instant};
 
 use super::state::DaemonState;
 use crate::backend::annotate::annotate_screenshot;
 use crate::core::protocol::{Request, Response};
-use crate::core::types::{Snapshot, WindowInfo};
+use crate::core::refs::{ResolveResult, SelectorQuery};
+use crate::core::types::{MonitorInfo, ScreenSize, Snapshot, SystemInfo, VersionInfo, WindowInfo};
 
 pub async fn handle_request(request: &Request, state: &Arc<Mutex<DaemonState>>) -> Response {
     match request.action.as_str() {
@@ -27,6 +29,12 @@ pub async fn handle_request(request: &Request, state: &Arc<Mutex<DaemonState>>) 
         "list-windows" => handle_list_windows(state).await,
         "get-screen-size" => handle_get_screen_size(state).await,
         "get-mouse-position" => handle_get_mouse_position(state).await,
+        "get-active-window" => handle_get_active_window(state).await,
+        "get-monitors" => handle_get_monitors(state).await,
+        "get-version" => handle_get_version(state).await,
+        "get-systeminfo" => handle_get_systeminfo(state).await,
+        "wait-window" => handle_wait(request, state, WaitKind::Window).await,
+        "wait-focus" => handle_wait(request, state, WaitKind::Focus).await,
         "screenshot" => handle_screenshot(request, state).await,
         "launch" => handle_launch(request, state).await,
         action => Response::err(format!("Unknown action: {action}")),
@@ -54,6 +62,7 @@ async fn handle_click(request: &Request, state: &Arc<Mutex<DaemonState>>) -> Res
     };
 
     let mut state = state.lock().await;
+    let selector_query = SelectorQuery::parse(&selector);
 
     if let Some((x, y)) = parse_coords(&selector) {
         return match state.backend.click(x, y) {
@@ -62,14 +71,23 @@ async fn handle_click(request: &Request, state: &Arc<Mutex<DaemonState>>) -> Res
         };
     }
 
+    if selector_query.needs_live_refresh() {
+        if let Err(error) = refresh_windows(&mut state) {
+            return Response::err(format!("Click failed: {error}"));
+        }
+    }
+
     match state.ref_map.resolve_to_center(&selector) {
-        Some((x, y)) => match state.backend.click(x, y) {
-            Ok(()) => {
-                Response::ok(serde_json::json!({"clicked": {"x": x, "y": y, "ref": selector}}))
+        ResolveResult::Match(entry) => {
+            let (x, y) = entry.center();
+            match state.backend.click(x, y) {
+                Ok(()) => Response::ok(
+                    serde_json::json!({"clicked": {"x": x, "y": y, "selector": selector, "window_id": entry.window_id}}),
+                ),
+                Err(error) => Response::err(format!("Click failed: {error}")),
             }
-            Err(error) => Response::err(format!("Click failed: {error}")),
-        },
-        None => Response::err(format!("Could not resolve selector: {selector}")),
+        }
+        outcome => selector_failure_response(outcome),
     }
 }
 
@@ -80,6 +98,7 @@ async fn handle_dblclick(request: &Request, state: &Arc<Mutex<DaemonState>>) -> 
     };
 
     let mut state = state.lock().await;
+    let selector_query = SelectorQuery::parse(&selector);
 
     if let Some((x, y)) = parse_coords(&selector) {
         return match state.backend.dblclick(x, y) {
@@ -88,14 +107,23 @@ async fn handle_dblclick(request: &Request, state: &Arc<Mutex<DaemonState>>) -> 
         };
     }
 
+    if selector_query.needs_live_refresh() {
+        if let Err(error) = refresh_windows(&mut state) {
+            return Response::err(format!("Double-click failed: {error}"));
+        }
+    }
+
     match state.ref_map.resolve_to_center(&selector) {
-        Some((x, y)) => match state.backend.dblclick(x, y) {
-            Ok(()) => Response::ok(
-                serde_json::json!({"double_clicked": {"x": x, "y": y, "ref": selector}}),
-            ),
-            Err(error) => Response::err(format!("Double-click failed: {error}")),
-        },
-        None => Response::err(format!("Could not resolve selector: {selector}")),
+        ResolveResult::Match(entry) => {
+            let (x, y) = entry.center();
+            match state.backend.dblclick(x, y) {
+                Ok(()) => Response::ok(
+                    serde_json::json!({"double_clicked": {"x": x, "y": y, "selector": selector, "window_id": entry.window_id}}),
+                ),
+                Err(error) => Response::err(format!("Double-click failed: {error}")),
+            }
+        }
+        outcome => selector_failure_response(outcome),
     }
 }
 
@@ -218,9 +246,15 @@ async fn handle_window_action(
     };
 
     let mut state = state.lock().await;
+    let selector_query = SelectorQuery::parse(&selector);
+    if selector_query.needs_live_refresh() {
+        if let Err(error) = refresh_windows(&mut state) {
+            return Response::err(format!("{action} failed: {error}"));
+        }
+    }
     let entry = match state.ref_map.resolve(&selector) {
-        Some(entry) => entry.clone(),
-        None => return Response::err(format!("Could not resolve window: {selector}")),
+        ResolveResult::Match(entry) => entry,
+        outcome => return selector_failure_response(outcome),
     };
 
     let result = match action {
@@ -248,9 +282,15 @@ async fn handle_move_window(request: &Request, state: &Arc<Mutex<DaemonState>>) 
     let y = request.extra.get("y").and_then(|v| v.as_i64()).unwrap_or(0) as i32;
 
     let mut state = state.lock().await;
+    let selector_query = SelectorQuery::parse(&selector);
+    if selector_query.needs_live_refresh() {
+        if let Err(error) = refresh_windows(&mut state) {
+            return Response::err(format!("Move failed: {error}"));
+        }
+    }
     let entry = match state.ref_map.resolve(&selector) {
-        Some(entry) => entry.clone(),
-        None => return Response::err(format!("Could not resolve window: {selector}")),
+        ResolveResult::Match(entry) => entry,
+        outcome => return selector_failure_response(outcome),
     };
 
     match state.backend.move_window(entry.backend_window_id, x, y) {
@@ -281,9 +321,15 @@ async fn handle_resize_window(request: &Request, state: &Arc<Mutex<DaemonState>>
         .unwrap_or(600) as u32;
 
     let mut state = state.lock().await;
+    let selector_query = SelectorQuery::parse(&selector);
+    if selector_query.needs_live_refresh() {
+        if let Err(error) = refresh_windows(&mut state) {
+            return Response::err(format!("Resize failed: {error}"));
+        }
+    }
     let entry = match state.ref_map.resolve(&selector) {
-        Some(entry) => entry.clone(),
-        None => return Response::err(format!("Could not resolve window: {selector}")),
+        ResolveResult::Match(entry) => entry,
+        outcome => return selector_failure_response(outcome),
     };
 
     match state
@@ -322,6 +368,185 @@ async fn handle_get_mouse_position(state: &Arc<Mutex<DaemonState>>) -> Response 
         Ok((x, y)) => Response::ok(serde_json::json!({"x": x, "y": y})),
         Err(error) => Response::err(format!("Failed: {error}")),
     }
+}
+
+async fn handle_get_active_window(state: &Arc<Mutex<DaemonState>>) -> Response {
+    let mut state = state.lock().await;
+    let active_backend_window = match state.backend.active_window() {
+        Ok(window) => window,
+        Err(error) => return Response::err(format!("Failed: {error}")),
+    };
+
+    let windows = match refresh_windows(&mut state) {
+        Ok(windows) => windows,
+        Err(error) => return Response::err(format!("Failed: {error}")),
+    };
+
+    let active_window = if let Some(active_backend_window) = active_backend_window {
+        state
+            .ref_map
+            .entries()
+            .find_map(|(_, entry)| {
+                (entry.backend_window_id == active_backend_window.native_id)
+                    .then(|| entry.to_window_info())
+            })
+            .or_else(|| windows.iter().find(|window| window.focused).cloned())
+    } else {
+        windows.iter().find(|window| window.focused).cloned()
+    };
+
+    if let Some(window) = active_window {
+        Response::ok(serde_json::json!({"window": window}))
+    } else {
+        Response::err_with_data(
+            "No focused window is available",
+            serde_json::json!({"kind": "not_found", "mode": "focused"}),
+        )
+    }
+}
+
+async fn handle_get_monitors(state: &Arc<Mutex<DaemonState>>) -> Response {
+    let state = state.lock().await;
+    match state.backend.list_monitors() {
+        Ok(monitors) => {
+            let monitors: Vec<MonitorInfo> = monitors.into_iter().map(Into::into).collect();
+            Response::ok(serde_json::json!({
+                "count": monitors.len(),
+                "monitors": monitors,
+            }))
+        }
+        Err(error) => Response::err(format!("Failed: {error}")),
+    }
+}
+
+async fn handle_get_version(state: &Arc<Mutex<DaemonState>>) -> Response {
+    let state = state.lock().await;
+    let info = VersionInfo {
+        version: env!("CARGO_PKG_VERSION").to_string(),
+        backend: state.backend.backend_name().to_string(),
+    };
+    Response::ok(serde_json::to_value(info).unwrap_or_default())
+}
+
+async fn handle_get_systeminfo(state: &Arc<Mutex<DaemonState>>) -> Response {
+    let state = state.lock().await;
+    let screen = match state.backend.screen_size() {
+        Ok((width, height)) => ScreenSize { width, height },
+        Err(error) => return Response::err(format!("Failed: {error}")),
+    };
+    let monitors = match state.backend.list_monitors() {
+        Ok(monitors) => monitors.into_iter().map(Into::into).collect::<Vec<_>>(),
+        Err(error) => return Response::err(format!("Failed: {error}")),
+    };
+
+    let info = SystemInfo {
+        backend: state.backend.backend_name().to_string(),
+        display: std::env::var("DISPLAY")
+            .ok()
+            .filter(|value| !value.is_empty()),
+        session_type: std::env::var("XDG_SESSION_TYPE")
+            .ok()
+            .filter(|value| !value.is_empty()),
+        session: state.session.clone(),
+        socket_path: state.socket_path.display().to_string(),
+        screen,
+        monitor_count: monitors.len(),
+        monitors,
+    };
+
+    Response::ok(serde_json::to_value(info).unwrap_or_default())
+}
+
+async fn handle_wait(
+    request: &Request,
+    state: &Arc<Mutex<DaemonState>>,
+    wait_kind: WaitKind,
+) -> Response {
+    let selector = match request.extra.get("selector").and_then(|v| v.as_str()) {
+        Some(selector) => selector.to_string(),
+        None => return Response::err("Missing 'selector' field"),
+    };
+    let timeout_ms = request
+        .extra
+        .get("timeout_ms")
+        .and_then(|v| v.as_u64())
+        .unwrap_or(10_000);
+    let poll_ms = request
+        .extra
+        .get("poll_ms")
+        .and_then(|v| v.as_u64())
+        .unwrap_or(250);
+
+    let start = Instant::now();
+    let deadline = Instant::now() + Duration::from_millis(timeout_ms);
+    let mut last_observation: serde_json::Value;
+
+    loop {
+        let outcome = {
+            let mut state = state.lock().await;
+            if let Err(error) = refresh_windows(&mut state) {
+                return Response::err(format!("Wait failed: {error}"));
+            }
+            observe_wait(&state, &selector, wait_kind)
+        };
+
+        match outcome {
+            WaitObservation::Satisfied(window) => {
+                let elapsed_ms = start.elapsed().as_millis() as u64;
+                return Response::ok(serde_json::json!({
+                    "wait": wait_kind.as_str(),
+                    "selector": selector,
+                    "elapsed_ms": elapsed_ms,
+                    "window": window,
+                }));
+            }
+            WaitObservation::Retry { observation } => {
+                last_observation = observation;
+            }
+            WaitObservation::Failure(response) => return response,
+        }
+
+        if Instant::now() >= deadline {
+            return Response::err_with_data(
+                format!(
+                    "Timed out waiting for {} to match selector: {}",
+                    wait_kind.as_str(),
+                    selector
+                ),
+                serde_json::json!({
+                    "kind": "timeout",
+                    "wait": wait_kind.as_str(),
+                    "selector": selector,
+                    "timeout_ms": timeout_ms,
+                    "poll_ms": poll_ms,
+                    "last_observation": last_observation,
+                }),
+            );
+        }
+
+        sleep(Duration::from_millis(poll_ms)).await;
+    }
+}
+
+#[derive(Clone, Copy)]
+enum WaitKind {
+    Window,
+    Focus,
+}
+
+impl WaitKind {
+    fn as_str(self) -> &'static str {
+        match self {
+            Self::Window => "window",
+            Self::Focus => "focus",
+        }
+    }
+}
+
+enum WaitObservation {
+    Satisfied(WindowInfo),
+    Retry { observation: serde_json::Value },
+    Failure(Response),
 }
 
 async fn handle_screenshot(request: &Request, state: &Arc<Mutex<DaemonState>>) -> Response {
@@ -387,6 +612,97 @@ fn refresh_windows(state: &mut DaemonState) -> Result<Vec<WindowInfo>> {
     Ok(state.ref_map.rebuild(&windows))
 }
 
+fn selector_failure_response(result: ResolveResult) -> Response {
+    match result {
+        ResolveResult::NotFound { selector, mode } => Response::err_with_data(
+            format!("Could not resolve selector: {selector}"),
+            serde_json::json!({
+                "kind": "selector_not_found",
+                "selector": selector,
+                "mode": mode,
+            }),
+        ),
+        ResolveResult::Ambiguous {
+            selector,
+            mode,
+            candidates,
+        } => Response::err_with_data(
+            format!("Selector is ambiguous: {selector}"),
+            serde_json::json!({
+                "kind": "selector_ambiguous",
+                "selector": selector,
+                "mode": mode,
+                "candidates": candidates,
+            }),
+        ),
+        ResolveResult::Invalid {
+            selector,
+            mode,
+            message,
+        } => Response::err_with_data(
+            format!("Invalid selector '{selector}': {message}"),
+            serde_json::json!({
+                "kind": "selector_invalid",
+                "selector": selector,
+                "mode": mode,
+                "message": message,
+            }),
+        ),
+        ResolveResult::Match(_) => unreachable!(),
+    }
+}
+
+fn observe_wait(state: &DaemonState, selector: &str, wait_kind: WaitKind) -> WaitObservation {
+    match state.ref_map.resolve(selector) {
+        ResolveResult::Match(entry) => {
+            let window = entry.to_window_info();
+            match wait_kind {
+                WaitKind::Window => WaitObservation::Satisfied(window),
+                WaitKind::Focus if window.focused => WaitObservation::Satisfied(window),
+                WaitKind::Focus => WaitObservation::Retry {
+                    observation: serde_json::json!({
+                        "kind": "window_not_focused",
+                        "window": window,
+                    }),
+                },
+            }
+        }
+        ResolveResult::NotFound { selector, mode } => WaitObservation::Retry {
+            observation: serde_json::json!({
+                "kind": "selector_not_found",
+                "selector": selector,
+                "mode": mode,
+            }),
+        },
+        ResolveResult::Ambiguous {
+            selector,
+            mode,
+            candidates,
+        } => WaitObservation::Failure(Response::err_with_data(
+            format!("Selector is ambiguous: {selector}"),
+            serde_json::json!({
+                "kind": "selector_ambiguous",
+                "selector": selector,
+                "mode": mode,
+                "candidates": candidates,
+            }),
+        )),
+        ResolveResult::Invalid {
+            selector,
+            mode,
+            message,
+        } => WaitObservation::Failure(Response::err_with_data(
+            format!("Invalid selector '{selector}': {message}"),
+            serde_json::json!({
+                "kind": "selector_invalid",
+                "selector": selector,
+                "mode": mode,
+                "message": message,
+            }),
+        )),
+    }
+}
+
 fn capture_snapshot(
     state: &mut DaemonState,
     annotate: bool,
@@ -437,4 +753,20 @@ fn parse_coords(value: &str) -> Option<(i32, i32)> {
     let x = parts[0].trim().parse().ok()?;
     let y = parts[1].trim().parse().ok()?;
     Some((x, y))
+}
+
+impl From<crate::backend::BackendMonitor> for MonitorInfo {
+    fn from(value: crate::backend::BackendMonitor) -> Self {
+        Self {
+            name: value.name,
+            x: value.x,
+            y: value.y,
+            width: value.width,
+            height: value.height,
+            width_mm: value.width_mm,
+            height_mm: value.height_mm,
+            primary: value.primary,
+            automatic: value.automatic,
+        }
+    }
 }

@@ -17,10 +17,29 @@ pub struct BackendWindow {
     pub minimized: bool,
 }
 
+#[derive(Debug, Clone)]
+pub struct BackendMonitor {
+    pub name: String,
+    pub x: i32,
+    pub y: i32,
+    pub width: u32,
+    pub height: u32,
+    pub width_mm: u32,
+    pub height_mm: u32,
+    pub primary: bool,
+    pub automatic: bool,
+}
+
 #[allow(dead_code)]
 pub trait DesktopBackend: Send {
     /// Collect z-ordered windows for read-only queries and targeting.
     fn list_windows(&mut self) -> Result<Vec<BackendWindow>>;
+
+    /// Get the currently focused window, if one is known.
+    fn active_window(&mut self) -> Result<Option<BackendWindow>>;
+
+    /// Collect monitor geometry and metadata.
+    fn list_monitors(&self) -> Result<Vec<BackendMonitor>>;
 
     /// Capture the current desktop image without writing it to disk.
     fn capture_screenshot(&mut self) -> Result<RgbaImage>;
@@ -69,4 +88,7 @@ pub trait DesktopBackend: Send {
 
     /// Launch an application.
     fn launch(&self, command: &str, args: &[String]) -> Result<u32>;
+
+    /// Human-readable backend name for diagnostics and runtime queries.
+    fn backend_name(&self) -> &'static str;
 }

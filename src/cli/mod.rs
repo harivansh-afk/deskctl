@@ -102,6 +102,12 @@ pub enum Command {
     GetMousePosition,
     /// Diagnose X11 runtime, screenshot, and daemon health
     Doctor,
+    /// Query runtime state
+    #[command(subcommand)]
+    Get(GetCmd),
+    /// Wait for runtime state transitions
+    #[command(subcommand)]
+    Wait(WaitCmd),
     /// Take a screenshot without window tree
     Screenshot {
         /// Save path (default: /tmp/deskctl-{timestamp}.png)
@@ -169,6 +175,57 @@ pub enum DaemonAction {
     Status,
 }
 
+const GET_ACTIVE_WINDOW_EXAMPLES: &str =
+    "Examples:\n  deskctl get active-window\n  deskctl --json get active-window";
+const GET_MONITORS_EXAMPLES: &str =
+    "Examples:\n  deskctl get monitors\n  deskctl --json get monitors";
+const GET_VERSION_EXAMPLES: &str = "Examples:\n  deskctl get version\n  deskctl --json get version";
+const GET_SYSTEMINFO_EXAMPLES: &str =
+    "Examples:\n  deskctl get systeminfo\n  deskctl --json get systeminfo";
+const WAIT_WINDOW_EXAMPLES: &str = "Examples:\n  deskctl wait window --selector 'title=Firefox' --timeout 10\n  deskctl --json wait window --selector 'class=firefox' --poll-ms 100";
+const WAIT_FOCUS_EXAMPLES: &str = "Examples:\n  deskctl wait focus --selector 'id=win3' --timeout 5\n  deskctl wait focus --selector focused --poll-ms 200";
+
+#[derive(Subcommand)]
+pub enum GetCmd {
+    /// Show the currently focused window
+    #[command(after_help = GET_ACTIVE_WINDOW_EXAMPLES)]
+    ActiveWindow,
+    /// List current monitor geometry and metadata
+    #[command(after_help = GET_MONITORS_EXAMPLES)]
+    Monitors,
+    /// Show deskctl version and backend information
+    #[command(after_help = GET_VERSION_EXAMPLES)]
+    Version,
+    /// Show runtime-focused diagnostic information
+    #[command(after_help = GET_SYSTEMINFO_EXAMPLES)]
+    Systeminfo,
+}
+
+#[derive(Subcommand)]
+pub enum WaitCmd {
+    /// Wait until a window matching the selector exists
+    #[command(after_help = WAIT_WINDOW_EXAMPLES)]
+    Window(WaitSelectorOpts),
+    /// Wait until the selector resolves to a focused window
+    #[command(after_help = WAIT_FOCUS_EXAMPLES)]
+    Focus(WaitSelectorOpts),
+}
+
+#[derive(Args)]
+pub struct WaitSelectorOpts {
+    /// Selector: ref=w1, id=win1, title=Firefox, class=firefox, focused, or a fuzzy substring
+    #[arg(long)]
+    pub selector: String,
+
+    /// Timeout in seconds
+    #[arg(long, default_value_t = 10)]
+    pub timeout: u64,
+
+    /// Poll interval in milliseconds
+    #[arg(long = "poll-ms", default_value_t = 250)]
+    pub poll_ms: u64,
+}
+
 pub fn run() -> Result<()> {
     let app = App::parse();
 
@@ -188,9 +245,13 @@ pub fn run() -> Result<()> {
     // All other commands need a daemon connection
     let request = build_request(&app.command)?;
     let response = connection::send_command(&app.global, &request)?;
+    let success = response.success;
 
     if app.global.json {
         println!("{}", serde_json::to_string_pretty(&response)?);
+        if !success {
+            std::process::exit(1);
+        }
     } else {
         print_response(&app.command, &response)?;
     }
@@ -244,6 +305,22 @@ fn build_request(cmd: &Command) -> Result<Request> {
         Command::GetScreenSize => Request::new("get-screen-size"),
         Command::GetMousePosition => Request::new("get-mouse-position"),
         Command::Doctor => unreachable!(),
+        Command::Get(sub) => match sub {
+            GetCmd::ActiveWindow => Request::new("get-active-window"),
+            GetCmd::Monitors => Request::new("get-monitors"),
+            GetCmd::Version => Request::new("get-version"),
+            GetCmd::Systeminfo => Request::new("get-systeminfo"),
+        },
+        Command::Wait(sub) => match sub {
+            WaitCmd::Window(opts) => Request::new("wait-window")
+                .with_extra("selector", json!(opts.selector))
+                .with_extra("timeout_ms", json!(opts.timeout * 1000))
+                .with_extra("poll_ms", json!(opts.poll_ms)),
+            WaitCmd::Focus(opts) => Request::new("wait-focus")
+                .with_extra("selector", json!(opts.selector))
+                .with_extra("timeout_ms", json!(opts.timeout * 1000))
+                .with_extra("poll_ms", json!(opts.poll_ms)),
+        },
         Command::Screenshot { path, annotate } => {
             let mut req = Request::new("screenshot").with_extra("annotate", json!(annotate));
             if let Some(p) = path {
@@ -263,6 +340,32 @@ fn print_response(cmd: &Command, response: &Response) -> Result<()> {
     if !response.success {
         if let Some(ref err) = response.error {
             eprintln!("Error: {err}");
+        }
+        if let Some(ref data) = response.data {
+            if let Some(kind) = data.get("kind").and_then(|value| value.as_str()) {
+                match kind {
+                    "selector_ambiguous" => {
+                        if let Some(candidates) = data.get("candidates").and_then(|v| v.as_array())
+                        {
+                            eprintln!("Candidates:");
+                            for candidate in candidates {
+                                print_window_to_stderr(candidate);
+                            }
+                        }
+                    }
+                    "timeout" => {
+                        if let Some(selector) = data.get("selector").and_then(|v| v.as_str()) {
+                            let wait = data.get("wait").and_then(|v| v.as_str()).unwrap_or("wait");
+                            let timeout_ms =
+                                data.get("timeout_ms").and_then(|v| v.as_u64()).unwrap_or(0);
+                            eprintln!(
+                                "Timed out after {timeout_ms}ms waiting for {wait} selector {selector}"
+                            );
+                        }
+                    }
+                    _ => {}
+                }
+            }
         }
         std::process::exit(1);
     }
@@ -293,21 +396,127 @@ fn print_response(cmd: &Command, response: &Response) -> Result<()> {
                     } else {
                         "visible"
                     };
-                    let display_title = if title.len() > 30 {
-                        format!("{}...", &title[..27])
-                    } else {
-                        title.to_string()
-                    };
+                    let display_title = truncate_display(title, 30);
                     println!(
                         "@{:<4} {:<30} ({:<7})  {},{} {}x{}",
                         ref_id, display_title, state, x, y, width, height
                     );
                 }
             }
+        } else if matches!(
+            cmd,
+            Command::Get(GetCmd::ActiveWindow)
+                | Command::Wait(WaitCmd::Window(_))
+                | Command::Wait(WaitCmd::Focus(_))
+        ) {
+            if let Some(window) = data.get("window") {
+                print_window(window);
+                if let Some(elapsed_ms) = data.get("elapsed_ms").and_then(|v| v.as_u64()) {
+                    println!("Elapsed: {elapsed_ms}ms");
+                }
+            } else {
+                println!("{}", serde_json::to_string_pretty(data)?);
+            }
+        } else if matches!(cmd, Command::Get(GetCmd::Monitors)) {
+            if let Some(monitors) = data.get("monitors").and_then(|v| v.as_array()) {
+                for monitor in monitors {
+                    let name = monitor
+                        .get("name")
+                        .and_then(|v| v.as_str())
+                        .unwrap_or("monitor");
+                    let x = monitor.get("x").and_then(|v| v.as_i64()).unwrap_or(0);
+                    let y = monitor.get("y").and_then(|v| v.as_i64()).unwrap_or(0);
+                    let width = monitor.get("width").and_then(|v| v.as_u64()).unwrap_or(0);
+                    let height = monitor.get("height").and_then(|v| v.as_u64()).unwrap_or(0);
+                    let primary = monitor
+                        .get("primary")
+                        .and_then(|v| v.as_bool())
+                        .unwrap_or(false);
+                    let primary_suffix = if primary { " primary" } else { "" };
+                    println!(
+                        "{name:<16} {},{} {}x{}{primary_suffix}",
+                        x, y, width, height
+                    );
+                }
+            }
+        } else if matches!(cmd, Command::Get(GetCmd::Version)) {
+            let version = data
+                .get("version")
+                .and_then(|v| v.as_str())
+                .unwrap_or("unknown");
+            let backend = data
+                .get("backend")
+                .and_then(|v| v.as_str())
+                .unwrap_or("unknown");
+            println!("deskctl {version} ({backend})");
+        } else if matches!(cmd, Command::Get(GetCmd::Systeminfo)) {
+            println!("{}", serde_json::to_string_pretty(data)?);
         } else {
             // Generic: print JSON data
             println!("{}", serde_json::to_string_pretty(data)?);
         }
     }
     Ok(())
+}
+
+fn print_window(window: &serde_json::Value) {
+    print_window_line(window, false);
+}
+
+fn print_window_to_stderr(window: &serde_json::Value) {
+    print_window_line(window, true);
+}
+
+fn print_window_line(window: &serde_json::Value, stderr: bool) {
+    let ref_id = window.get("ref_id").and_then(|v| v.as_str()).unwrap_or("?");
+    let window_id = window
+        .get("window_id")
+        .and_then(|v| v.as_str())
+        .unwrap_or("unknown");
+    let title = window.get("title").and_then(|v| v.as_str()).unwrap_or("");
+    let focused = window
+        .get("focused")
+        .and_then(|v| v.as_bool())
+        .unwrap_or(false);
+    let minimized = window
+        .get("minimized")
+        .and_then(|v| v.as_bool())
+        .unwrap_or(false);
+    let x = window.get("x").and_then(|v| v.as_i64()).unwrap_or(0);
+    let y = window.get("y").and_then(|v| v.as_i64()).unwrap_or(0);
+    let width = window.get("width").and_then(|v| v.as_u64()).unwrap_or(0);
+    let height = window.get("height").and_then(|v| v.as_u64()).unwrap_or(0);
+    let state = if focused {
+        "focused"
+    } else if minimized {
+        "hidden"
+    } else {
+        "visible"
+    };
+    let line = format!(
+        "@{:<4} {:<30} ({:<7})  {},{} {}x{} [{}]",
+        ref_id,
+        truncate_display(title, 30),
+        state,
+        x,
+        y,
+        width,
+        height,
+        window_id
+    );
+    if stderr {
+        eprintln!("{line}");
+    } else {
+        println!("{line}");
+    }
+}
+
+fn truncate_display(value: &str, max_chars: usize) -> String {
+    let char_count = value.chars().count();
+    if char_count <= max_chars {
+        return value.to_string();
+    }
+
+    let truncated: String = value.chars().take(max_chars.saturating_sub(3)).collect();
+    format!("{truncated}...")
 }
