@@ -6,73 +6,93 @@ toc: true
 
 # Architecture
 
-## Client-daemon model
+## Public model
 
-deskctl uses a client-daemon architecture over Unix sockets. The daemon starts automatically on the first command and keeps the X11 connection alive so repeated calls skip the connection setup overhead.
+`deskctl` is a thin, non-interactive X11 control primitive for agent loops.
+The public flow is:
 
-Each command opens a new connection to the daemon, sends a single NDJSON request, reads one NDJSON response, and exits.
+- diagnose with `deskctl doctor`
+- observe with `snapshot`, `list-windows`, and grouped `get` commands
+- wait with grouped `wait` commands instead of shell `sleep`
+- act with explicit selectors or coordinates
+- verify with another read or snapshot
 
-## Wire protocol
+The tool stays intentionally narrow. It does not try to be a full desktop shell
+or a speculative Wayland abstraction.
+
+## Client-daemon architecture
+
+The CLI talks to an auto-managed daemon over a Unix socket. The daemon keeps
+the X11 connection alive so repeated commands stay fast and share the same
+session-scoped window identity map.
+
+Each CLI invocation sends one request, reads one response, and exits.
+
+## Runtime contract
 
 Requests and responses are newline-delimited JSON (NDJSON) over a Unix socket.
 
-**Request:**
+All commands share the same JSON envelope:
 
 ```json
-{ "id": "r123456", "action": "snapshot", "annotate": true }
+{
+  "success": true,
+  "data": {},
+  "error": null
+}
 ```
 
-**Response:**
+For window payloads, the public identity is `window_id`, not an X11 handle.
+That keeps the contract backend-neutral even though the current support
+boundary is X11-only.
 
-```json
-{"success": true, "data": {"screenshot": "/tmp/deskctl-1234567890.png", "windows": [...]}}
-```
+The complete stable-vs-best-effort policy lives on the
+[runtime contract](/runtime-contract) page.
 
-Error responses include an `error` field:
+## Sessions and sockets
 
-```json
-{ "success": false, "error": "window not found: @w99" }
-```
+Each session gets its own socket path, PID file, and live window mapping.
 
-## Socket location
+Public socket resolution order:
 
-The daemon socket is resolved in this order:
-
-1. `--socket` flag (highest priority)
-2. `$DESKCTL_SOCKET_DIR/{session}.sock`
-3. `$XDG_RUNTIME_DIR/deskctl/{session}.sock`
+1. `--socket`
+2. `DESKCTL_SOCKET_DIR/{session}.sock`
+3. `XDG_RUNTIME_DIR/deskctl/{session}.sock`
 4. `~/.deskctl/{session}.sock`
 
-PID files are stored alongside the socket.
+Most users should let `deskctl` manage this automatically. `--session` is the
+main public knob when you need isolated daemon instances.
 
-## Sessions
+## Diagnostics and failure handling
 
-Multiple isolated daemon instances can run simultaneously using the `--session` flag:
+`deskctl doctor` runs before daemon startup and checks:
 
-```sh
-deskctl --session workspace1 snapshot
-deskctl --session workspace2 snapshot
-```
+- display/session setup
+- X11 connectivity
+- basic window enumeration
+- screenshot viability
+- socket directory and stale-socket health
 
-Each session has its own socket, PID file, and window ref map.
+Selector and wait failures are structured in `--json` mode so clients can
+recover without scraping text.
 
-## Backend design
+## Backend notes
 
-The core is built around a `DesktopBackend` trait. The current implementation uses `x11rb` for X11 protocol operations and `enigo` for input simulation.
+The backend is built around a `DesktopBackend` trait and currently ships with
+an X11 implementation backed by `x11rb`.
 
-The trait-based design means adding Wayland support is a single trait implementation with no changes to the core, CLI, or daemon code.
+The important public guarantee is not "portable desktop automation." The
+important guarantee is "a correct and unsurprising Linux X11 runtime contract."
 
-## X11 integration
+## X11 support boundary
 
-Window detection uses EWMH properties:
+This phase supports Linux X11 only.
 
-| Property                    | Purpose                  |
-| --------------------------- | ------------------------ |
-| `_NET_CLIENT_LIST_STACKING` | Window stacking order    |
-| `_NET_ACTIVE_WINDOW`        | Currently focused window |
-| `_NET_WM_NAME`              | Window title (UTF-8)     |
-| `_NET_WM_STATE_HIDDEN`      | Minimized state          |
-| `_NET_CLOSE_WINDOW`         | Graceful close           |
-| `WM_CLASS`                  | Application class/name   |
+That means:
 
-Falls back to `XQueryTree` if `_NET_CLIENT_LIST_STACKING` is unavailable.
+- EWMH/window-manager properties matter
+- monitor naming and some ordering details are best-effort
+- Wayland and Hyprland are out of scope for the current contract
+
+The runtime documents those boundaries explicitly instead of pretending the
+surface is broader than it is.

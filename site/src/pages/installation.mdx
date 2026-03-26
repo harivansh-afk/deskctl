@@ -6,43 +6,68 @@ toc: true
 
 # Installation
 
-## Cargo
+## Default install
 
 ```sh
-cargo install deskctl
+npm install -g deskctl-cli
+deskctl --help
 ```
 
-## From source
+`deskctl-cli` is the default install path. It installs the `deskctl` command by
+downloading the matching GitHub Release asset for the supported runtime target.
+
+## One-shot usage
+
+```sh
+npx deskctl-cli --help
+```
+
+## Agent skill
+
+For `skills.sh`-style runtimes:
+
+```sh
+npx skills add harivansh-afk/deskctl -s deskctl
+```
+
+The repo skill lives under `skills/deskctl` and is designed around the same
+observe -> wait -> act -> verify loop as the CLI.
+
+## Other install paths
+
+### Nix
+
+```sh
+nix run github:harivansh-afk/deskctl -- --help
+nix profile install github:harivansh-afk/deskctl
+```
+
+### Build from source
 
 ```sh
 git clone https://github.com/harivansh-afk/deskctl
 cd deskctl
-cargo build --release
+cargo build
 ```
 
-## Docker (cross-compile for Linux)
+Source builds on Linux require:
 
-Build a static Linux binary from any platform:
+- Rust 1.75+
+- `pkg-config`
+- X11 development libraries such as `libx11-dev` and `libxtst-dev`
 
-```sh
-docker compose -f docker/docker-compose.yml run --rm build
-```
-
-This writes `dist/deskctl-linux-x86_64`.
-
-## Deploy to a remote machine
-
-Copy the binary over SSH when `scp` is not available:
-
-```sh
-ssh -p 443 user@host 'cat > ~/deskctl && chmod +x ~/deskctl' < dist/deskctl-linux-x86_64
-```
-
-## Requirements
+## Runtime requirements
 
 - Linux with an active X11 session
-- `DISPLAY` environment variable set (e.g. `DISPLAY=:1`)
-- `XDG_SESSION_TYPE=x11`
-- A window manager that exposes EWMH properties (`_NET_CLIENT_LIST_STACKING`, `_NET_ACTIVE_WINDOW`)
+- `DISPLAY` set to a usable X11 display, such as `DISPLAY=:1`
+- `XDG_SESSION_TYPE=x11` or an equivalent X11 session environment
+- a window manager or desktop environment that exposes standard EWMH properties
+  such as `_NET_CLIENT_LIST_STACKING` and `_NET_ACTIVE_WINDOW`
 
-No extra native libraries are needed beyond the standard glibc runtime (`libc`, `libm`, `libgcc_s`).
+The binary itself only depends on the standard Linux glibc runtime.
+
+If setup fails, run:
+
+```sh
+deskctl doctor
+```

@@ -1,266 +1,68 @@
 # deskctl
 
-Desktop control CLI for AI agents on Linux X11. 
+[![npm](https://img.shields.io/npm/v/deskctl-cli?label=npm)](https://www.npmjs.com/package/deskctl-cli)
+[![release](https://img.shields.io/github/v/release/harivansh-afk/deskctl?label=release)](https://github.com/harivansh-afk/deskctl/releases)
+[![runtime](https://img.shields.io/badge/runtime-linux--x11-111827)](#support-boundary)
+[![skill](https://img.shields.io/badge/skills.sh-deskctl-111827)](skills/deskctl)
+
+Non-interactive desktop control for AI agents on Linux X11.
 
 ## Install
 
-### Cargo
-
-```bash
-cargo install deskctl
-```
-
-Source builds on Linux require:
-
-- Rust 1.75+
-- `pkg-config`
-- X11 development libraries for input and windowing, typically `libx11-dev` and `libxtst-dev` on Debian/Ubuntu
-
-### npm
-
 ```bash
 npm install -g deskctl-cli
-deskctl --help
+deskctl doctor
+deskctl snapshot --annotate
 ```
 
-One-shot execution is also supported:
+One-shot execution also works:
 
 ```bash
 npx deskctl-cli --help
 ```
 
-`deskctl-cli` currently supports `linux-x64` and installs the `deskctl` command by downloading the matching GitHub Release asset.
+`deskctl-cli` installs the `deskctl` command by downloading the matching GitHub Release asset for the supported runtime target.
 
-### Installable skill
-
-For `skills.sh` / agent skill ecosystems:
+## Installable skill
 
 ```bash
 npx skills add harivansh-afk/deskctl -s deskctl
 ```
 
-The installable skill lives under [`skills/deskctl`](skills/deskctl) and is designed for X11 sandboxes, VMs, and sandbox-agent desktop sessions. It points agents to the npm install path first so they can get `deskctl` without Cargo.
+The installable skill lives in [`skills/deskctl`](skills/deskctl) and is built around the same observe -> wait -> act -> verify loop as the CLI.
 
-### Nix
+## Quick example
+
+```bash
+deskctl doctor
+deskctl snapshot --annotate
+deskctl wait window --selector 'title=Firefox' --timeout 10
+deskctl focus 'title=Firefox'
+deskctl type "hello world"
+```
+
+## Docs
+
+- runtime contract: [docs/runtime-contract.md](docs/runtime-contract.md)
+- release flow: [docs/releasing.md](docs/releasing.md)
+- installable skill: [skills/deskctl](skills/deskctl)
+- contributor workflow: [CONTRIBUTING.md](CONTRIBUTING.md)
+
+## Other install paths
+
+Nix:
 
 ```bash
 nix run github:harivansh-afk/deskctl -- --help
 nix profile install github:harivansh-afk/deskctl
 ```
 
-The repo flake is the supported Nix install surface in this phase.
-
-### Docker Convenience
-
-Build a Linux binary locally with Docker:
-
-```bash
-docker compose -f docker/docker-compose.yml run --rm build
-```
-
-This writes `dist/deskctl-linux-x86_64`.
-
-Copy it to an SSH machine where `scp` is unavailable:
-
-```bash
-ssh -p 443 deskctl@ssh.agentcomputer.ai 'cat > ~/deskctl && chmod +x ~/deskctl' < dist/deskctl-linux-x86_64
-```
-
-Run it on an X11 session:
-
-```bash
-DISPLAY=:1 XDG_SESSION_TYPE=x11 ~/deskctl --json snapshot --annotate
-```
-
-### Local Source Build
+Source build:
 
 ```bash
 cargo build
 ```
 
-## Quick Start
+## Support boundary
 
-```bash
-# Diagnose the environment first
-deskctl doctor
-
-# See the desktop
-deskctl snapshot
-
-# Query focused runtime state
-deskctl get active-window
-deskctl get monitors
-
-# Click a window
-deskctl click @w1
-
-# Type text
-deskctl type "hello world"
-
-# Wait for a window or focus transition
-deskctl wait window --selector 'title=Firefox' --timeout 10
-deskctl wait focus --selector 'class=firefox' --timeout 5
-
-# Focus by explicit selector
-deskctl focus 'title=Firefox'
-```
-
-## Architecture
-
-Client-daemon architecture over Unix sockets (NDJSON wire protocol). 
-The daemon starts automatically on first command and keeps the X11 connection alive for fast repeated calls.
-
-Source layout:
-
-- `src/lib.rs` exposes the shared library target
-- `src/main.rs` is the thin CLI wrapper
-- `src/` contains production code and unit tests
-- `tests/` contains Linux/X11 integration tests
-- `tests/support/` contains shared integration helpers
-
-## Runtime Requirements
-
-- Linux with X11 session
-- Rust 1.75+ plus the source-build dependencies above when building from source
-
-The binary itself only links the standard glibc runtime on Linux (`libc`, `libm`, `libgcc_s`).
-
-For deskctl to be fully functional on a fresh VM you still need:
-
-- an X11 server and an active `DISPLAY`
-- `XDG_SESSION_TYPE=x11` or an equivalent X11 session environment
-- a window manager or desktop environment that exposes standard EWMH properties such as `_NET_CLIENT_LIST_STACKING` and `_NET_ACTIVE_WINDOW`
-- an X server with the extensions needed for input simulation and screen metadata, which is standard on normal desktop X11 setups
-
-If setup fails, run:
-
-```bash
-deskctl doctor
-```
-
-## Contract Notes
-
-- `@wN` refs are short-lived handles assigned by `snapshot` and `list-windows`
-- `--json` output includes a stable `window_id` for programmatic targeting within the current daemon session
-- `list-windows` is a cheap read-only operation and does not capture or write a screenshot
-- the stable runtime JSON/error contract is documented in [docs/runtime-contract.md](docs/runtime-contract.md)
-
-## Read and Wait Surface
-
-The grouped runtime reads are:
-
-```bash
-deskctl get active-window
-deskctl get monitors
-deskctl get version
-deskctl get systeminfo
-```
-
-The grouped runtime waits are:
-
-```bash
-deskctl wait window --selector 'title=Firefox' --timeout 10
-deskctl wait focus --selector 'id=win3' --timeout 5
-```
-
-Successful `get active-window`, `wait window`, and `wait focus` responses return a `window` payload with:
-- `ref_id`
-- `window_id`
-- `title`
-- `app_name`
-- geometry (`x`, `y`, `width`, `height`)
-- state flags (`focused`, `minimized`)
-
-`get monitors` returns:
-- `count`
-- `monitors[]` with geometry and primary/automatic flags
-
-`get version` returns:
-- `version`
-- `backend`
-
-`get systeminfo` stays runtime-scoped and returns:
-- `backend`
-- `display`
-- `session_type`
-- `session`
-- `socket_path`
-- `screen`
-- `monitor_count`
-- `monitors`
-
-Wait timeout and selector failures are structured in `--json` mode so agents can recover without string parsing.
-
-## Output Policy
-
-Text mode is compact and follow-up-oriented, but JSON is the parsing contract.
-
-- use `--json` when an agent needs strict parsing
-- rely on `window_id`, selector-related fields, grouped read payloads, and structured error `kind` values for stable automation
-- treat monitor naming, incidental whitespace, and default screenshot file names as best-effort
-
-See [docs/runtime-conract.md](docs/runtime-contract.md) for the exact stable-vs-best-effort breakdown.
-
-## Distribution
-
-- GitHub Releases are the canonical binary source
-- crates.io package: `deskctl`
-- npm package: `deskctl-cli`
-- installed command on every channel: `deskctl`
-- repo-owned Nix install path: `flake.nix`
-
-For maintainer publishing and release steps, see [docs/releasing.md](docs/releasing.md).
-
-## Selector Contract
-
-Explicit selector modes:
-
-```bash
-ref=w1
-id=win1
-title=Firefox
-class=firefox
-focused
-```
-
-Legacy refs remain supported:
-
-```bash
-@w1
-w1
-win1
-```
-
-Bare selectors such as `firefox` are still supported as fuzzy substring matches, but they now fail on ambiguity and return candidate windows instead of silently picking the first match.
-
-## Support Boundary
-
-`deskctl` supports Linux X11 in this phase. Wayland and Hyprland are explicitly out of scope for the current runtime contract.
-
-## Workflow
-
-Local validation uses the root `Makefile`:
-
-```bash
-make fmt-check
-make lint
-make test-unit
-make test-integration
-make site-format-check
-make validate
-```
-
-`make validate` is the full repo-quality check and requires Linux with `xvfb-run` plus `pnpm --dir site install`.
-
-The repository standardizes on `pre-commit` for fast commit-time checks:
-
-```bash
-pre-commit install
-pre-commit run --all-files
-```
-
-See [CONTRIBUTING.md](CONTRIBUTING.md) for the full contributor guide.
-
-## Acknowledgements
-
-- [@barrettruth](github.com/barrettruth) - i stole the website from [vimdoc](https://github.com/barrettruth/vimdoc-language-server)
+`deskctl` currently supports Linux X11. Use `--json` for stable machine parsing, use `window_id` for programmatic targeting inside a live session, and use `deskctl doctor` first when the runtime looks broken.

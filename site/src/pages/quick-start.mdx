@@ -6,50 +6,72 @@ toc: true
 
 # Quick start
 
-## Core workflow
-
-The typical agent loop is: snapshot the desktop, interpret the result, act on it.
+## Install and diagnose
 
 ```sh
-# 1. see the desktop
-deskctl --json snapshot --annotate
+npm install -g deskctl-cli
+deskctl doctor
+```
 
-# 2. click a window by its ref
-deskctl click @w1
+Use `deskctl doctor` first. It checks X11 connectivity, basic enumeration,
+screenshot viability, and socket health before you start driving the desktop.
 
-# 3. type into the focused window
-deskctl type "hello world"
+## Observe
 
-# 4. press a key
+```sh
+deskctl snapshot --annotate
+deskctl list-windows
+deskctl get active-window
+deskctl get monitors
+```
+
+Use `snapshot` when you want a screenshot artifact plus window refs. Use
+`list-windows` when you only need the current window tree without writing a
+screenshot.
+
+## Target windows cleanly
+
+Prefer explicit selectors when you need deterministic targeting:
+
+```sh
+ref=w1
+id=win1
+title=Firefox
+class=firefox
+focused
+```
+
+Legacy refs such as `@w1` still work after `snapshot` or `list-windows`. Bare
+strings like `firefox` are fuzzy matches and now fail on ambiguity.
+
+## Wait, act, verify
+
+The core loop is:
+
+```sh
+# observe
+deskctl snapshot --annotate
+
+# wait
+deskctl wait window --selector 'title=Firefox' --timeout 10
+
+# act
+deskctl focus 'title=Firefox'
+deskctl hotkey ctrl l
+deskctl type "https://example.com"
 deskctl press enter
+
+# verify
+deskctl wait focus --selector 'title=Firefox' --timeout 5
+deskctl snapshot
 ```
 
-The `--annotate` flag draws colored bounding boxes and `@wN` labels on the screenshot so agents can visually identify windows.
+The wait commands return the matched window payload on success, so they compose
+cleanly into the next action.
 
-## Window refs
+## Use `--json` when parsing matters
 
-Every `snapshot` assigns refs like `@w1`, `@w2`, etc. to each visible window, ordered top-to-bottom by stacking order. Use these refs anywhere a selector is expected:
-
-```sh
-deskctl click @w1
-deskctl focus @w3
-deskctl close @w2
-```
-
-You can also select windows by name (case-insensitive substring match):
-
-```sh
-deskctl focus "firefox"
-deskctl close "terminal"
-```
-
-## JSON output
-
-Pass `--json` for machine-readable output. This is the primary mode for agent integrations:
-
-```sh
-deskctl --json snapshot
-```
+Every command supports `--json` and uses the same top-level envelope:
 
 ```json
 {
@@ -59,7 +81,7 @@ deskctl --json snapshot
     "windows": [
       {
         "ref_id": "w1",
-        "xcb_id": 12345678,
+        "window_id": "win1",
         "title": "Firefox",
         "app_name": "firefox",
         "x": 0,
@@ -74,14 +96,8 @@ deskctl --json snapshot
 }
 ```
 
-## Daemon lifecycle
+Use `window_id` for stable targeting inside a live daemon session. The exact
+text formatting is intentionally compact, but JSON is the parsing contract.
 
-The daemon starts automatically on the first command. It keeps the X11 connection alive so repeated calls are fast. You do not need to manage it manually.
-
-```sh
-# check if the daemon is running
-deskctl daemon status
-
-# stop it explicitly
-deskctl daemon stop
-```
+The full stable-vs-best-effort contract lives on the
+[runtime contract](/runtime-contract) page.
