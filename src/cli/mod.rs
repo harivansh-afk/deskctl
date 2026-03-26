@@ -7,7 +7,12 @@ use std::path::PathBuf;
 use crate::core::protocol::{Request, Response};
 
 #[derive(Parser)]
-#[command(name = "deskctl", version, about = "Desktop control CLI for AI agents")]
+#[command(
+    name = "deskctl",
+    bin_name = "deskctl",
+    version,
+    about = "Desktop control CLI for AI agents"
+)]
 pub struct App {
     #[command(flatten)]
     pub global: GlobalOpts,
@@ -986,6 +991,12 @@ mod tests {
             .render_long_help()
             .to_string();
         assert!(help.contains("deskctl snapshot --annotate"));
+    }
+
+    #[test]
+    fn root_help_uses_public_bin_name() {
+        let help = App::command().render_help().to_string();
+        assert!(help.contains("Usage: deskctl [OPTIONS] <COMMAND>"));
     }
 
     #[test]
