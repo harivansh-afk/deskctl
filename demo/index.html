@@ -1,0 +1,969 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>deskctl - Desktop Control for AI Agents</title>
+<style>
+  *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+  :root {
+    /* cozybox light */
+    --page-bg: #f2f2f2;
+    --bg: #e7e7e7;
+    --surface: #dcdcdc;
+    --surface-2: #e1e1e1;
+    --border: #c3c7c9;
+    --text: #282828;
+    --text-dim: #504945;
+    --text-muted: #928374;
+    --selection: #c3c7c9;
+    --accent: #4261a5;
+    --green: #427b58;
+    --red: #c5524a;
+    --yellow: #d79921;
+    --orange: #af3a03;
+    --purple: #8f3f71;
+    --aqua: #427b58;
+    --cyan: #3c7678;
+    --gray: #928374;
+    --mono: 'Berkeley Mono', 'JetBrains Mono', 'Fira Code', 'SF Mono', Consolas, monospace;
+    --sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+  }
+
+  body {
+    font-family: var(--sans);
+    background: var(--page-bg);
+    color: var(--text);
+    overflow: hidden;
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .hero {
+    text-align: center;
+    margin-bottom: 28px;
+    z-index: 10;
+  }
+
+  .hero h1 {
+    font-family: var(--mono);
+    font-size: 28px;
+    font-weight: 700;
+    letter-spacing: -0.5px;
+    margin-bottom: 4px;
+  }
+
+  .hero p { font-size: 14px; color: var(--text-dim); }
+
+  .demo-container {
+    display: flex;
+    gap: 16px;
+    width: 1140px;
+    max-width: 96vw;
+    height: 580px;
+  }
+
+  /* ── Desktop ──────────────────────────────────────── */
+  .desktop-panel {
+    flex: 1;
+    position: relative;
+    border-radius: 12px;
+    overflow: hidden;
+    background: var(--bg);
+    box-shadow: 0 4px 24px rgba(0,0,0,0.08), 0 0 0 1px rgba(0,0,0,0.04);
+  }
+
+  .desktop-titlebar {
+    height: 30px;
+    background: var(--surface);
+    display: flex;
+    align-items: center;
+    padding: 0 12px;
+    gap: 6px;
+  }
+
+  .dot { width: 10px; height: 10px; border-radius: 50%; }
+
+  .viewport {
+    position: relative;
+    height: calc(100% - 30px);
+    background: var(--bg);
+    overflow: hidden;
+  }
+
+  .wallpaper {
+    position: absolute;
+    inset: 0;
+    background:
+      radial-gradient(ellipse at 25% 35%, rgba(66,97,165,0.04) 0%, transparent 55%),
+      radial-gradient(ellipse at 75% 65%, rgba(66,123,88,0.03) 0%, transparent 55%),
+      var(--bg);
+  }
+
+  /* ── Taskbar ──────────────────────────────────────── */
+  .taskbar {
+    position: absolute;
+    bottom: 0; left: 0; right: 0;
+    height: 28px;
+    background: var(--surface);
+    display: flex;
+    align-items: center;
+    padding: 0 8px;
+    gap: 2px;
+    z-index: 15;
+  }
+
+  .tb-item {
+    height: 20px;
+    padding: 0 10px;
+    font-family: var(--mono);
+    font-size: 9px;
+    color: var(--text-dim);
+    display: flex;
+    align-items: center;
+    border-radius: 3px;
+    opacity: 0;
+    transform: translateX(-4px);
+    transition: opacity 0.3s, transform 0.3s, background 0.15s;
+  }
+
+  .tb-item.visible { opacity: 1; transform: translateX(0); }
+  .tb-item.active { background: rgba(0,0,0,0.06); color: var(--text); }
+
+  /* ── Windows ──────────────────────────────────────── */
+  .win {
+    position: absolute;
+    border-radius: 8px;
+    overflow: hidden;
+    box-shadow: 0 2px 12px rgba(0,0,0,0.08), 0 0 0 1px rgba(0,0,0,0.04);
+    transition: box-shadow 0.2s, opacity 0.4s ease, transform 0.4s ease;
+    opacity: 0;
+    transform: scale(0.92) translateY(14px);
+  }
+
+  .win.visible { opacity: 1; transform: scale(1) translateY(0); }
+  .win.focused { box-shadow: 0 4px 20px rgba(0,0,0,0.12), 0 0 0 1px rgba(66,97,165,0.15); z-index: 10; }
+
+  .wbar {
+    height: 26px;
+    background: var(--surface);
+    display: flex;
+    align-items: center;
+    padding: 0 8px;
+    gap: 5px;
+    font-size: 10px;
+    font-family: var(--mono);
+    color: var(--text-dim);
+  }
+
+  .wbar .dots { display: flex; gap: 3px; }
+  .wbar .dots span { width: 7px; height: 7px; border-radius: 50%; }
+
+  .wbody {
+    background: #f8f8f8;
+    height: calc(100% - 26px);
+    overflow: hidden;
+    position: relative;
+  }
+
+  /* ── File Manager ─────────────────────────────────── */
+  .file-list { padding: 8px; }
+
+  .file-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 5px 8px;
+    border-radius: 4px;
+    font-family: var(--mono);
+    font-size: 10px;
+    color: var(--text-dim);
+    transition: background 0.15s;
+  }
+
+  .file-row.selected { background: var(--selection); color: var(--text); }
+  .file-row .ficon { font-size: 13px; width: 18px; text-align: center; }
+  .file-row .fmeta { margin-left: auto; font-size: 8px; color: var(--text-muted); }
+
+  .file-preview {
+    position: absolute;
+    bottom: 0; left: 0; right: 0;
+    height: 0;
+    background: var(--surface);
+    overflow: hidden;
+    transition: height 0.3s ease;
+    font-family: var(--mono);
+    font-size: 9px;
+    line-height: 1.5;
+    color: var(--text-dim);
+    padding: 0 10px;
+  }
+
+  .file-preview.open { height: 58px; padding: 8px 10px; }
+
+  /* ── Stock Chart ──────────────────────────────────── */
+  .chart-header {
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+    padding: 8px 12px 2px;
+    font-family: var(--mono);
+  }
+
+  .chart-ticker { font-size: 14px; font-weight: 700; color: var(--text); }
+  .chart-price { font-size: 12px; color: var(--green); }
+  .chart-change { font-size: 9px; color: var(--green); }
+  .chart-period { font-size: 8px; color: var(--text-muted); margin-left: auto; }
+
+  .chart-area { padding: 4px 12px 8px; height: calc(100% - 60px); }
+  .chart-area svg { width: 100%; height: 100%; }
+
+  .chart-vol {
+    display: flex;
+    align-items: flex-end;
+    gap: 2px;
+    height: 20px;
+    padding: 0 12px;
+  }
+
+  .chart-vol div {
+    flex: 1;
+    background: var(--border);
+    border-radius: 1px 1px 0 0;
+    min-height: 2px;
+  }
+
+  /* ── Google Docs ──────────────────────────────────── */
+  .gdoc-toolbar {
+    height: 24px;
+    background: #f1f3f4;
+    display: flex;
+    align-items: center;
+    padding: 0 8px;
+    gap: 3px;
+  }
+
+  .gdoc-toolbar .tb { width: 16px; height: 12px; background: #dadce0; border-radius: 2px; }
+  .gdoc-toolbar .tb.wide { width: 28px; }
+  .gdoc-toolbar .sep { width: 1px; height: 14px; background: #dadce0; margin: 0 3px; }
+
+  .gdoc-page {
+    background: #ffffff;
+    margin: 10px auto;
+    width: 88%;
+    height: calc(100% - 44px);
+    border-radius: 2px;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.06);
+    padding: 20px 24px;
+    overflow: hidden;
+  }
+
+  .gdoc-title { font-family: var(--sans); font-size: 16px; font-weight: 700; color: #202124; min-height: 22px; margin-bottom: 4px; }
+  .gdoc-subtitle { font-family: var(--sans); font-size: 9px; color: #5f6368; margin-bottom: 10px; min-height: 12px; }
+  .gdoc-body { font-family: var(--sans); font-size: 9px; line-height: 1.6; color: #3c4043; min-height: 14px; }
+
+  .gdoc-chart-img {
+    margin-top: 8px;
+    width: 100%;
+    height: 80px;
+    background: #fafafa;
+    border: 1px solid #e0e0e0;
+    border-radius: 4px;
+    overflow: hidden;
+    opacity: 0;
+    transform: scale(0.95);
+    transition: opacity 0.3s, transform 0.3s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .gdoc-chart-img.visible { opacity: 1; transform: scale(1); }
+  .gdoc-chart-img svg { width: 95%; height: 80%; }
+
+  @keyframes blink { 50% { opacity: 0; } }
+
+  /* ── Annotations ──────────────────────────────────── */
+  .annot {
+    position: absolute;
+    border: 2px solid;
+    border-radius: 4px;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 0.3s;
+    z-index: 20;
+  }
+
+  .annot.visible { opacity: 1; }
+
+  .annot-label {
+    position: absolute;
+    top: -16px;
+    left: -2px;
+    font-family: var(--mono);
+    font-size: 8px;
+    font-weight: 700;
+    padding: 1px 5px;
+    border-radius: 3px 3px 0 0;
+    color: #fff;
+  }
+
+  .annot.c1 { border-color: var(--accent); }
+  .annot.c1 .annot-label { background: var(--accent); }
+  .annot.c2 { border-color: var(--green); }
+  .annot.c2 .annot-label { background: var(--green); }
+  .annot.c3 { border-color: var(--orange); }
+  .annot.c3 .annot-label { background: var(--orange); }
+
+  .flash {
+    position: absolute;
+    inset: 0;
+    background: white;
+    opacity: 0;
+    pointer-events: none;
+    z-index: 50;
+    transition: opacity 0.05s;
+  }
+
+  .flash.fire { opacity: 0.3; }
+
+  /* ── Cursor ───────────────────────────────────────── */
+  .agent-cursor {
+    position: absolute;
+    width: 18px;
+    height: 22px;
+    z-index: 100;
+    pointer-events: none;
+    filter: drop-shadow(0 1px 2px rgba(0,0,0,0.15));
+  }
+
+  .agent-cursor svg { width: 100%; height: 100%; }
+  .agent-cursor.clicking { transform: scale(0.85); transition: transform 0.06s ease-out; }
+
+  .click-ripple {
+    position: absolute;
+    width: 24px; height: 24px;
+    border-radius: 50%;
+    border: 2px solid var(--accent);
+    opacity: 0;
+    pointer-events: none;
+    z-index: 99;
+    transform: translate(-50%, -50%) scale(0.3);
+  }
+
+  .click-ripple.animate { animation: ripple 0.4s ease-out forwards; }
+
+  @keyframes ripple {
+    0% { opacity: 0.6; transform: translate(-50%, -50%) scale(0.3); }
+    100% { opacity: 0; transform: translate(-50%, -50%) scale(1.5); }
+  }
+
+  /* ── Command Panel (light) ────────────────────────── */
+  .cmd-panel {
+    width: 340px;
+    border-radius: 12px;
+    overflow: hidden;
+    background: var(--bg);
+    box-shadow: 0 4px 24px rgba(0,0,0,0.08), 0 0 0 1px rgba(0,0,0,0.04);
+    display: flex;
+    flex-direction: column;
+  }
+
+  .cmd-titlebar {
+    height: 30px;
+    background: var(--surface);
+    display: flex;
+    align-items: center;
+    padding: 0 12px;
+    gap: 6px;
+  }
+
+  .cmd-titlebar .label {
+    font-family: var(--mono);
+    font-size: 10px;
+    color: var(--text-dim);
+    margin-left: 6px;
+  }
+
+  .cmd-body {
+    flex: 1;
+    padding: 12px;
+    font-family: var(--mono);
+    font-size: 11px;
+    line-height: 1.7;
+    overflow-y: auto;
+    scrollbar-width: none;
+  }
+
+  .cmd-body::-webkit-scrollbar { display: none; }
+
+  .cmd-line {
+    opacity: 0;
+    transform: translateY(4px);
+    transition: opacity 0.25s, transform 0.25s;
+    margin-bottom: 2px;
+  }
+
+  .cmd-line.visible { opacity: 1; transform: translateY(0); }
+  .cmd-line .ps { color: var(--green); user-select: none; }
+  .cmd-line .c { color: var(--text); }
+  .cmd-line .f { color: var(--orange); }
+  .cmd-line .s { color: var(--accent); }
+  .cmd-line .o { color: var(--text-dim); font-size: 10px; padding-left: 2px; }
+  .cmd-line .ok { color: var(--green); }
+  .cmd-line .jk { color: var(--purple); }
+  .cmd-line .jv { color: var(--accent); }
+  .cmd-line .link { color: var(--accent); text-decoration: underline; }
+  .cmd-line .agent-msg { color: var(--text); font-size: 10px; line-height: 1.5; padding-left: 2px; }
+
+  .cmd-divider {
+    height: 1px;
+    background: var(--border);
+    margin: 8px 0;
+    opacity: 0;
+    transition: opacity 0.3s;
+  }
+
+  .cmd-divider.visible { opacity: 1; }
+
+  .step-ind {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-bottom: 4px;
+    opacity: 0;
+    transform: translateY(4px);
+    transition: opacity 0.25s, transform 0.25s;
+  }
+
+  .step-ind.visible { opacity: 1; transform: translateY(0); }
+
+  .badge {
+    font-size: 8px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    padding: 2px 5px;
+    border-radius: 3px;
+    font-family: var(--mono);
+  }
+
+  .badge.observe { background: rgba(66,97,165,0.12); color: var(--accent); }
+  .badge.act { background: rgba(66,123,88,0.12); color: var(--green); }
+  .badge.wait { background: rgba(175,58,3,0.1); color: var(--orange); }
+  .badge.verify { background: rgba(143,63,113,0.1); color: var(--purple); }
+  .badge.done { background: rgba(66,123,88,0.15); color: var(--green); }
+
+  .step-lbl { font-size: 9px; color: var(--text-muted); }
+
+  .caption {
+    text-align: center;
+    margin-top: 20px;
+    z-index: 10;
+  }
+
+  .caption p { font-size: 11px; color: var(--text-muted); font-family: var(--mono); }
+
+  .caption .replay-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    margin-top: 8px;
+    padding: 5px 12px;
+    border-radius: 6px;
+    border: 1px solid var(--border);
+    background: #fff;
+    color: var(--text-dim);
+    font-family: var(--mono);
+    font-size: 10px;
+    cursor: pointer;
+    transition: color 0.2s, background 0.2s;
+  }
+
+  .caption .replay-btn:hover { background: var(--bg); color: var(--text); }
+</style>
+</head>
+<body>
+
+<div class="hero">
+  <h1>deskctl</h1>
+  <p>desktop control CLI for AI agents</p>
+</div>
+
+<div class="demo-container">
+  <div class="desktop-panel">
+    <div class="desktop-titlebar">
+      <div class="dot" style="background:#c5524a"></div>
+      <div class="dot" style="background:#d79921"></div>
+      <div class="dot" style="background:#427b58"></div>
+    </div>
+    <div class="viewport" id="vp">
+      <div class="wallpaper"></div>
+
+      <!-- File Manager -->
+      <div class="win" id="w-files" style="left:16px; top:16px; width:200px; height:220px;">
+        <div class="wbar">
+          <div class="dots"><span style="background:#c5524a"></span><span style="background:#d79921"></span><span style="background:#427b58"></span></div>
+          <span>Files ~/reports</span>
+        </div>
+        <div class="wbody">
+          <div class="file-list">
+            <div class="file-row" id="f-notes">
+              <span class="ficon">&#128221;</span>
+              <span>task_brief.txt</span>
+              <span class="fmeta">2.1 KB</span>
+            </div>
+            <div class="file-row" id="f-csv">
+              <span class="ficon">&#128202;</span>
+              <span>nvda_q1_data.csv</span>
+              <span class="fmeta">48 KB</span>
+            </div>
+            <div class="file-row" id="f-prev">
+              <span class="ficon">&#128196;</span>
+              <span>prev_report.pdf</span>
+              <span class="fmeta">1.2 MB</span>
+            </div>
+            <div class="file-row">
+              <span class="ficon">&#128193;</span>
+              <span>archive/</span>
+              <span class="fmeta">--</span>
+            </div>
+          </div>
+          <div class="file-preview" id="file-preview">
+            <span style="color:#427b58">task:</span> Prepare NVDA Q1 earnings summary<br>
+            <span style="color:#427b58">source:</span> finance.yahoo.com, local csv<br>
+            <span style="color:#427b58">output:</span> Google Docs report with chart
+          </div>
+        </div>
+      </div>
+
+      <!-- Stock Chart -->
+      <div class="win" id="w-chart" style="left:140px; top:40px; width:380px; height:260px;">
+        <div class="wbar">
+          <div class="dots"><span style="background:#c5524a"></span><span style="background:#d79921"></span><span style="background:#427b58"></span></div>
+          <span>Chrome - Yahoo Finance</span>
+        </div>
+        <div class="wbody">
+          <div class="chart-header">
+            <span class="chart-ticker">NVDA</span>
+            <span class="chart-price">$924.68</span>
+            <span class="chart-change">+3.42%</span>
+            <span class="chart-period">1Y</span>
+          </div>
+          <div class="chart-area">
+            <svg viewBox="0 0 360 140" preserveAspectRatio="none">
+              <defs>
+                <linearGradient id="cg" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stop-color="#427b58" stop-opacity="0.2"/>
+                  <stop offset="100%" stop-color="#427b58" stop-opacity="0"/>
+                </linearGradient>
+              </defs>
+              <line x1="0" y1="35" x2="360" y2="35" stroke="#dcdcdc" stroke-width="0.5"/>
+              <line x1="0" y1="70" x2="360" y2="70" stroke="#dcdcdc" stroke-width="0.5"/>
+              <line x1="0" y1="105" x2="360" y2="105" stroke="#dcdcdc" stroke-width="0.5"/>
+              <path d="M0,120 L20,115 40,118 60,110 80,105 100,95 120,100 140,85 160,75 180,80 200,65 220,55 240,60 260,45 280,35 300,40 320,28 340,22 360,18 L360,140 L0,140 Z" fill="url(#cg)"/>
+              <path d="M0,120 L20,115 40,118 60,110 80,105 100,95 120,100 140,85 160,75 180,80 200,65 220,55 240,60 260,45 280,35 300,40 320,28 340,22 360,18" fill="none" stroke="#427b58" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+              <text x="352" y="33" fill="#928374" font-size="7" font-family="monospace" text-anchor="end">$950</text>
+              <text x="352" y="68" fill="#928374" font-size="7" font-family="monospace" text-anchor="end">$800</text>
+              <text x="352" y="103" fill="#928374" font-size="7" font-family="monospace" text-anchor="end">$650</text>
+            </svg>
+          </div>
+          <div class="chart-vol" id="chart-vol"></div>
+        </div>
+      </div>
+
+      <!-- Google Docs -->
+      <div class="win" id="w-docs" style="left:80px; top:60px; width:440px; height:340px;">
+        <div class="wbar">
+          <div class="dots"><span style="background:#c5524a"></span><span style="background:#d79921"></span><span style="background:#427b58"></span></div>
+          <span>Chrome - Google Docs</span>
+        </div>
+        <div class="wbody" style="background:#f1f3f4">
+          <div class="gdoc-toolbar">
+            <div class="tb"></div><div class="tb"></div><div class="tb wide"></div>
+            <div class="sep"></div>
+            <div class="tb"></div><div class="tb"></div><div class="tb"></div>
+            <div class="sep"></div>
+            <div class="tb wide"></div><div class="tb"></div>
+          </div>
+          <div class="gdoc-page">
+            <div class="gdoc-title" id="doc-title"></div>
+            <div class="gdoc-subtitle" id="doc-subtitle"></div>
+            <div class="gdoc-body" id="doc-body"></div>
+            <div class="gdoc-chart-img" id="doc-chart">
+              <svg viewBox="0 0 360 80" preserveAspectRatio="none">
+                <defs>
+                  <linearGradient id="cg2" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stop-color="#427b58" stop-opacity="0.15"/>
+                    <stop offset="100%" stop-color="#427b58" stop-opacity="0"/>
+                  </linearGradient>
+                </defs>
+                <rect width="360" height="80" fill="#fafafa"/>
+                <path d="M0,65 L20,62 40,64 60,58 80,55 100,48 120,52 140,42 160,36 180,39 200,30 220,24 240,27 260,19 280,14 300,17 320,10 340,7 360,5 L360,80 L0,80 Z" fill="url(#cg2)"/>
+                <path d="M0,65 L20,62 40,64 60,58 80,55 100,48 120,52 140,42 160,36 180,39 200,30 220,24 240,27 260,19 280,14 300,17 320,10 340,7 360,5" fill="none" stroke="#427b58" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+                <text x="8" y="12" fill="#928374" font-size="7" font-family="monospace">NVDA 1Y</text>
+              </svg>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Annotations -->
+      <div class="annot c1" id="a1"><div class="annot-label">@w1</div></div>
+      <div class="annot c2" id="a2"><div class="annot-label">@w2</div></div>
+      <div class="annot c3" id="a3"><div class="annot-label">@w3</div></div>
+
+      <div class="flash" id="flash"></div>
+
+      <div class="agent-cursor" id="cur" style="left:380px; top:260px;">
+        <svg viewBox="0 0 24 24" fill="none"><path d="M5.5 3.21V20.8c0 .45.54.67.85.35l4.86-4.86a.5.5 0 0 1 .35-.15h6.87a.5.5 0 0 0 .35-.85L6.35 2.86a.5.5 0 0 0-.85.35Z" fill="#282828" stroke="#fff" stroke-width="1"/></svg>
+      </div>
+      <div class="click-ripple" id="rip"></div>
+
+      <!-- Taskbar -->
+      <div class="taskbar">
+        <div class="tb-item" id="tb-files">Files</div>
+        <div class="tb-item" id="tb-chart">Yahoo Finance</div>
+        <div class="tb-item" id="tb-docs">Google Docs</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="cmd-panel">
+    <div class="cmd-titlebar">
+      <div class="dot" style="background:#c5524a"></div>
+      <div class="dot" style="background:#d79921"></div>
+      <div class="dot" style="background:#427b58"></div>
+      <span class="label">agent computer</span>
+    </div>
+    <div class="cmd-body" id="cb"></div>
+  </div>
+</div>
+
+<div class="caption">
+  <p>AI agent controlling a live desktop via deskctl</p>
+  <button class="replay-btn" id="replay" style="display:none" onclick="run()">&#8634; Replay</button>
+</div>
+
+<script>
+const $ = s => document.getElementById(s);
+const W = ms => new Promise(r => setTimeout(r, ms));
+const cur = $('cur'), rip = $('rip'), cb = $('cb');
+let cx = 380, cy = 260;
+
+(() => {
+  const v = $('chart-vol');
+  [8,12,6,14,10,18,8,15,20,12,7,16,10,22,14,8,18,12,9,16].forEach(h => {
+    const d = document.createElement('div'); d.style.height = h + 'px'; v.appendChild(d);
+  });
+})();
+
+function move(x, y, dur = 500) {
+  return new Promise(res => {
+    const sx = cx, sy = cy, dx = x - sx, dy = y - sy, t0 = performance.now();
+    (function f(n) {
+      const t = Math.min((n - t0) / dur, 1), e = 1 - (1 - t) ** 3;
+      const arc = -Math.sin(t * Math.PI) * Math.min(Math.abs(dy) * 0.25, 25);
+      cur.style.left = (sx + dx * e) + 'px';
+      cur.style.top = (sy + dy * e + arc) + 'px';
+      if (t < 1) requestAnimationFrame(f); else { cx = x; cy = y; res(); }
+    })(performance.now());
+  });
+}
+
+async function clk() {
+  cur.classList.add('clicking');
+  rip.style.left = (cx + 4) + 'px'; rip.style.top = (cy + 4) + 'px';
+  rip.classList.remove('animate'); void rip.offsetWidth; rip.classList.add('animate');
+  await W(80); cur.classList.remove('clicking');
+}
+
+async function flash() {
+  const f = $('flash'); f.classList.add('fire'); await W(80); f.classList.remove('fire');
+}
+
+function show(id) { $(id).classList.add('visible'); }
+function hide(id) { $(id).classList.remove('visible'); }
+
+function tbShow(id) { const el = $(id); el.classList.add('visible'); }
+function tbActive(id) {
+  document.querySelectorAll('.tb-item').forEach(t => t.classList.remove('active'));
+  if (id) $(id).classList.add('active');
+}
+
+function focus(id) {
+  document.querySelectorAll('.win').forEach(w => { w.classList.remove('focused'); w.style.zIndex = ''; });
+  if (id) { $(id).classList.add('focused'); $(id).style.zIndex = '10'; }
+}
+
+function posAnnot(aid, wid) {
+  const w = $(wid), a = $(aid);
+  a.style.left = (parseInt(w.style.left) - 2) + 'px';
+  a.style.top = (parseInt(w.style.top) + 26) + 'px';
+  a.style.width = (parseInt(w.style.width) + 4) + 'px';
+  a.style.height = (parseInt(w.style.height) - 22) + 'px';
+}
+
+function hideAnnots() { document.querySelectorAll('.annot').forEach(a => a.classList.remove('visible')); }
+
+function typeEl(el, text, ms = 40) {
+  return new Promise(async res => {
+    for (const c of text) { el.textContent += c; await W(ms); }
+    res();
+  });
+}
+
+function step(type, label) {
+  const d = document.createElement('div'); d.className = 'step-ind';
+  d.innerHTML = `<span class="badge ${type}">${type}</span><span class="step-lbl">${label}</span>`;
+  cb.appendChild(d); void d.offsetWidth; d.classList.add('visible'); cb.scrollTop = cb.scrollHeight;
+}
+
+function ln(html) {
+  const d = document.createElement('div'); d.className = 'cmd-line';
+  d.innerHTML = `<span class="ps">$ </span>${html}`;
+  cb.appendChild(d); void d.offsetWidth; d.classList.add('visible'); cb.scrollTop = cb.scrollHeight;
+}
+
+function out(html) {
+  const d = document.createElement('div'); d.className = 'cmd-line';
+  d.innerHTML = `<span class="o">${html}</span>`;
+  cb.appendChild(d); void d.offsetWidth; d.classList.add('visible'); cb.scrollTop = cb.scrollHeight;
+}
+
+function agentMsg(html) {
+  const d = document.createElement('div'); d.className = 'cmd-line';
+  d.innerHTML = `<span class="agent-msg">${html}</span>`;
+  cb.appendChild(d); void d.offsetWidth; d.classList.add('visible'); cb.scrollTop = cb.scrollHeight;
+}
+
+function div() {
+  const d = document.createElement('div'); d.className = 'cmd-divider';
+  cb.appendChild(d); void d.offsetWidth; d.classList.add('visible'); cb.scrollTop = cb.scrollHeight;
+}
+
+function cm(c, f, s) {
+  let h = `<span class="c">${c}</span>`;
+  if (f) h += ` <span class="f">${f}</span>`;
+  if (s) h += ` <span class="s">${s}</span>`;
+  return h;
+}
+
+async function run() {
+  $('replay').style.display = 'none';
+  cb.innerHTML = '';
+  ['w-files','w-chart','w-docs'].forEach(id => { hide(id); $(id).classList.remove('focused'); $(id).style.zIndex = ''; });
+  document.querySelectorAll('.tb-item').forEach(t => { t.classList.remove('visible','active'); });
+  hideAnnots();
+  $('f-notes').classList.remove('selected');
+  $('f-csv').classList.remove('selected');
+  $('file-preview').classList.remove('open');
+  $('doc-title').textContent = '';
+  $('doc-subtitle').textContent = '';
+  $('doc-body').textContent = '';
+  $('doc-chart').classList.remove('visible');
+  cur.style.left = '380px'; cur.style.top = '260px'; cur.style.opacity = '0';
+  cx = 380; cy = 260;
+
+  await W(500);
+  cur.style.transition = 'opacity 0.3s'; cur.style.opacity = '1';
+  await W(400); cur.style.transition = 'none';
+
+  // 1: Empty desktop
+  step('observe', 'Scan desktop');
+  await W(250);
+  ln(cm('deskctl snapshot'));
+  await W(400);
+  out('<span class="jk">"windows"</span>: <span class="o">[]</span>');
+  out('<span class="ok">empty desktop</span>');
+  await W(400); div();
+
+  // 2: Launch file manager
+  step('act', 'Open local files');
+  await W(250);
+  ln(cm('deskctl launch', '', 'nautilus ~/reports'));
+  await W(350);
+  show('w-files'); focus('w-files');
+  tbShow('tb-files'); tbActive('tb-files');
+  await W(300);
+  out('<span class="ok">launched nautilus (pid 3841)</span>');
+  await W(300);
+
+  step('wait', 'Wait for window');
+  ln(cm('deskctl wait window', "--selector 'title=Files'", '--timeout 5'));
+  await W(500);
+  out('<span class="ok">window ready: "Files ~/reports"</span>');
+  await W(300); div();
+
+  // 3: Read task brief
+  step('observe', 'Read task brief');
+  await W(250);
+  ln(cm('deskctl click', '', "'title=Files'"));
+  await move(100, 62, 450);
+  await clk();
+  $('f-notes').classList.add('selected');
+  await W(200);
+  out('<span class="ok">clicked "task_brief.txt"</span>');
+  await W(200);
+
+  ln(cm('deskctl hotkey', '', 'space'));
+  await W(300);
+  $('file-preview').classList.add('open');
+  await W(400);
+  out('<span class="o">task: Prepare NVDA Q1 earnings summary</span>');
+  out('<span class="o">source: finance.yahoo.com, local csv</span>');
+  out('<span class="o">output: Google Docs report with chart</span>');
+  await W(500); div();
+
+  // 4: Launch browser
+  step('act', 'Research stock data');
+  await W(250);
+  ln(cm('deskctl launch', '', 'google-chrome finance.yahoo.com/NVDA'));
+  await W(400);
+  show('w-chart'); focus('w-chart');
+  tbShow('tb-chart'); tbActive('tb-chart');
+  await W(350);
+  out('<span class="ok">launched chrome (pid 3912)</span>');
+
+  step('wait', 'Wait for page');
+  ln(cm('deskctl wait window', "--selector 'title=Yahoo'", '--timeout 8'));
+  await W(600);
+  out('<span class="ok">window ready: "Yahoo Finance - NVDA"</span>');
+  await W(300); div();
+
+  // 5: Snapshot chart
+  step('observe', 'Capture chart screenshot');
+  await W(250);
+  ln(cm('deskctl snapshot', '--annotate'));
+  await W(300);
+  await flash();
+  posAnnot('a1', 'w-files'); posAnnot('a2', 'w-chart');
+  show('a1'); show('a2');
+  await W(200);
+  out('<span class="jk">"windows"</span>: [');
+  out('&nbsp;&nbsp;{ <span class="jv">"@w1"</span>: <span class="jv">"Files"</span> }');
+  out('&nbsp;&nbsp;{ <span class="jv">"@w2"</span>: <span class="jv">"Yahoo Finance"</span> }');
+  out(']');
+  out('<span class="ok">screenshot saved: chart_nvda.png</span>');
+  await W(600);
+  hideAnnots(); div();
+
+  // 6: Open Google Docs
+  step('act', 'Create report document');
+  await W(250);
+  ln(cm('deskctl hotkey', '', 'ctrl t'));
+  await W(300);
+  out('<span class="ok">new tab opened</span>');
+  await W(200);
+
+  ln(cm('deskctl type', '', '"docs.google.com/document/new"'));
+  await W(200);
+  ln(cm('deskctl press', '', 'enter'));
+  await W(400);
+  show('w-docs'); focus('w-docs');
+  tbShow('tb-docs'); tbActive('tb-docs');
+  await W(350);
+  out('<span class="ok">navigated to Google Docs</span>');
+
+  step('wait', 'Wait for Docs');
+  ln(cm('deskctl wait window', "--selector 'title=Google Docs'", '--timeout 8'));
+  await W(500);
+  out('<span class="ok">document ready</span>');
+  await W(300); div();
+
+  // 7: Type title
+  step('act', 'Write report');
+  await W(250);
+  await move(310, 140, 450);
+  await clk();
+  await W(200);
+
+  ln(cm('deskctl type', '', '"NVDA Q1 2025 Earnings Summary"'));
+  await W(200);
+  await typeEl($('doc-title'), 'NVDA Q1 2025 Earnings Summary', 35);
+  out('<span class="ok">typed title</span>');
+  await W(200);
+
+  ln(cm('deskctl press', '', 'enter'));
+  await W(150);
+  ln(cm('deskctl type', '', '"Prepared by AI Agent via deskctl"'));
+  await W(200);
+  await typeEl($('doc-subtitle'), 'Prepared by AI Agent via deskctl', 28);
+  await W(200);
+  ln(cm('deskctl press', '', 'enter enter'));
+  await W(200); div();
+
+  // 8: Type body
+  step('act', 'Write analysis');
+  await W(250);
+  const body = "NVIDIA reported strong Q1 results driven by data center revenue growth of 427% YoY. The stock is up 3.42% today at $924.68. Key drivers include H100/H200 GPU demand from hyperscalers and continued AI infrastructure buildout.";
+  ln(cm('deskctl type', '', '"NVIDIA reported strong Q1..."'));
+  await W(200);
+  await typeEl($('doc-body'), body, 12);
+  out('<span class="ok">typed analysis (224 chars)</span>');
+  await W(400); div();
+
+  // 9: Paste chart
+  step('act', 'Insert chart screenshot');
+  await W(250);
+  ln(cm('deskctl press', '', 'enter enter'));
+  await W(200);
+  ln(cm('deskctl hotkey', '', 'ctrl v'));
+  await W(400);
+  $('doc-chart').classList.add('visible');
+  await W(300);
+  out('<span class="ok">pasted chart_nvda.png into document</span>');
+  await W(500); div();
+
+  // 10: Final verify
+  step('verify', 'Verify completed report');
+  await W(250);
+  ln(cm('deskctl snapshot', '--annotate'));
+  await W(300);
+  await flash();
+  posAnnot('a1', 'w-files'); posAnnot('a2', 'w-chart'); posAnnot('a3', 'w-docs');
+  show('a1'); show('a2'); show('a3');
+  await W(200);
+  out('<span class="jk">"windows"</span>: [');
+  out('&nbsp;&nbsp;{ <span class="jv">"@w1"</span>: <span class="jv">"Files"</span>, <span class="jv">"@w2"</span>: <span class="jv">"Yahoo Finance"</span>, <span class="jv">"@w3"</span>: <span class="jv">"Google Docs"</span> }');
+  out(']');
+  await W(600);
+  hideAnnots();
+  await W(300); div();
+
+  // 11: Agent summary (Claude-style)
+  step('done', 'Task complete');
+  await W(400);
+  agentMsg('I\'ve completed the NVDA Q1 earnings report.');
+  await W(300);
+  agentMsg('');
+  await W(100);
+  agentMsg('Here\'s what I did:');
+  await W(200);
+  agentMsg('  - Read task_brief.txt from ~/reports for context');
+  await W(150);
+  agentMsg('  - Pulled the NVDA 1Y chart from Yahoo Finance');
+  await W(150);
+  agentMsg('  - Created a new Google Doc with title, analysis,');
+  await W(100);
+  agentMsg('    and embedded the stock chart screenshot');
+  await W(300);
+  agentMsg('');
+  agentMsg('Document: <span class="link">docs.google.com/d/1xK9m...r4/edit</span>');
+
+  // Cursor exits
+  await W(500);
+  await move(600, 10, 700);
+  cur.style.transition = 'opacity 0.5s'; cur.style.opacity = '0';
+  await W(600);
+  $('replay').style.display = 'inline-flex';
+}
+
+window.addEventListener('load', () => setTimeout(run, 300));
+</script>
+</body>
+</html>
