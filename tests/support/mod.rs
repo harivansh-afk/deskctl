@@ -4,6 +4,7 @@ use std::os::unix::net::UnixListener;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Output};
 use std::sync::{Mutex, OnceLock};
+use std::thread;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use anyhow::{anyhow, bail, Context, Result};
@@ -60,8 +61,7 @@ pub struct FixtureWindow {
 
 impl FixtureWindow {
     pub fn create(title: &str, app_class: &str) -> Result<Self> {
-        let (conn, screen_num) =
-            x11rb::connect(None).context("Failed to connect to the integration test display")?;
+        let (conn, screen_num) = connect_to_test_display()?;
         let screen = &conn.setup().roots[screen_num];
         let window = conn.generate_id()?;
 
@@ -101,6 +101,26 @@ impl FixtureWindow {
         std::thread::sleep(std::time::Duration::from_millis(150));
         Ok(Self { conn, window })
     }
+}
+
+fn connect_to_test_display() -> Result<(RustConnection, usize)> {
+    let max_attempts = 10;
+    let mut last_error = None;
+
+    for attempt in 0..max_attempts {
+        match x11rb::connect(None) {
+            Ok(connection) => return Ok(connection),
+            Err(error) => {
+                last_error = Some(anyhow!(error));
+                if attempt + 1 < max_attempts {
+                    thread::sleep(std::time::Duration::from_millis(100 * (attempt + 1) as u64));
+                }
+            }
+        }
+    }
+
+    Err(last_error.expect("x11 connection attempts should capture an error"))
+        .context("Failed to connect to the integration test display")
 }
 
 impl Drop for FixtureWindow {
