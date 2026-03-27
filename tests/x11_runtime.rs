@@ -115,6 +115,31 @@ fn daemon_start_recovers_from_stale_socket() -> Result<()> {
 }
 
 #[test]
+fn daemon_init_failure_cleans_runtime_state() -> Result<()> {
+    let _guard = env_lock_guard();
+    let session = TestSession::new("daemon-init-failure")?;
+
+    let output = session.run_daemon([("XDG_SESSION_TYPE", "x11"), ("DISPLAY", ":99999")])?;
+    assert!(!output.status.success(), "daemon startup should fail");
+
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        stderr.contains("Failed to initialize daemon state"),
+        "unexpected stderr: {stderr}"
+    );
+    assert!(
+        !session.socket_path().exists(),
+        "failed startup should remove the socket path"
+    );
+    assert!(
+        !session.pid_path().exists(),
+        "failed startup should remove the pid path"
+    );
+
+    Ok(())
+}
+
+#[test]
 fn wait_window_returns_matched_window_payload() -> Result<()> {
     let _guard = env_lock_guard();
     let Some(_env) = SessionEnvGuard::prepare() else {

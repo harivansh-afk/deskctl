@@ -142,6 +142,10 @@ impl TestSession {
             .expect("TestSession always has an explicit socket path")
     }
 
+    pub fn pid_path(&self) -> PathBuf {
+        self.root.join("deskctl.pid")
+    }
+
     pub fn create_stale_socket(&self) -> Result<()> {
         let listener = UnixListener::bind(self.socket_path())
             .with_context(|| format!("Failed to bind {}", self.socket_path().display()))?;
@@ -187,6 +191,29 @@ impl TestSession {
             )
         })
     }
+
+    pub fn run_daemon<I, K, V>(&self, env: I) -> Result<Output>
+    where
+        I: IntoIterator<Item = (K, V)>,
+        K: AsRef<std::ffi::OsStr>,
+        V: AsRef<std::ffi::OsStr>,
+    {
+        let mut command = Command::new(env!("CARGO_BIN_EXE_deskctl"));
+        command
+            .env("DESKCTL_DAEMON", "1")
+            .env("DESKCTL_SOCKET_PATH", self.socket_path())
+            .env("DESKCTL_PID_PATH", self.pid_path())
+            .env("DESKCTL_SESSION", &self.opts.session)
+            .envs(env);
+
+        command.output().with_context(|| {
+            format!(
+                "Failed to run daemon {} against {}",
+                env!("CARGO_BIN_EXE_deskctl"),
+                self.socket_path().display()
+            )
+        })
+    }
 }
 
 impl Drop for TestSession {
@@ -194,6 +221,9 @@ impl Drop for TestSession {
         let _ = connection::stop_daemon(&self.opts);
         if self.socket_path().exists() {
             let _ = std::fs::remove_file(self.socket_path());
+        }
+        if self.pid_path().exists() {
+            let _ = std::fs::remove_file(self.pid_path());
         }
         let _ = std::fs::remove_dir_all(&self.root);
     }

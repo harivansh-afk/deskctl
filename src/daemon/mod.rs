@@ -1,6 +1,7 @@
 mod handler;
 mod state;
 
+use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use anyhow::{Context, Result};
@@ -11,6 +12,29 @@ use tokio::sync::Mutex;
 use crate::core::paths::{pid_path_from_env, socket_path_from_env};
 use crate::core::session;
 use state::DaemonState;
+
+struct RuntimePathsGuard {
+    socket_path: PathBuf,
+    pid_path: Option<PathBuf>,
+}
+
+impl RuntimePathsGuard {
+    fn new(socket_path: PathBuf, pid_path: Option<PathBuf>) -> Self {
+        Self {
+            socket_path,
+            pid_path,
+        }
+    }
+}
+
+impl Drop for RuntimePathsGuard {
+    fn drop(&mut self) {
+        remove_runtime_path(&self.socket_path);
+        if let Some(ref pid_path) = self.pid_path {
+            remove_runtime_path(pid_path);
+        }
+    }
+}
 
 pub fn run() -> Result<()> {
     // Validate session before starting
@@ -25,7 +49,6 @@ pub fn run() -> Result<()> {
 
 async fn async_run() -> Result<()> {
     let socket_path = socket_path_from_env().context("DESKCTL_SOCKET_PATH not set")?;
-
     let pid_path = pid_path_from_env();
 
     // Clean up stale socket
@@ -33,19 +56,20 @@ async fn async_run() -> Result<()> {
         std::fs::remove_file(&socket_path)?;
     }
 
-    // Write PID file
-    if let Some(ref pid_path) = pid_path {
-        std::fs::write(pid_path, std::process::id().to_string())?;
-    }
-
-    let listener = UnixListener::bind(&socket_path)
-        .context(format!("Failed to bind socket: {}", socket_path.display()))?;
-
     let session = std::env::var("DESKCTL_SESSION").unwrap_or_else(|_| "default".to_string());
     let state = Arc::new(Mutex::new(
         DaemonState::new(session, socket_path.clone())
             .context("Failed to initialize daemon state")?,
     ));
+
+    let listener = UnixListener::bind(&socket_path)
+        .context(format!("Failed to bind socket: {}", socket_path.display()))?;
+    let _runtime_paths = RuntimePathsGuard::new(socket_path.clone(), pid_path.clone());
+
+    // Write PID file only after the daemon is ready to serve requests.
+    if let Some(ref pid_path) = pid_path {
+        std::fs::write(pid_path, std::process::id().to_string())?;
+    }
 
     let shutdown = Arc::new(tokio::sync::Notify::new());
     let shutdown_clone = shutdown.clone();
@@ -73,14 +97,6 @@ async fn async_run() -> Result<()> {
                 break;
             }
         }
-    }
-
-    // Cleanup
-    if socket_path.exists() {
-        let _ = std::fs::remove_file(&socket_path);
-    }
-    if let Some(ref pid_path) = pid_path {
-        let _ = std::fs::remove_file(pid_path);
     }
 
     Ok(())
@@ -122,4 +138,12 @@ async fn handle_connection(
     writer.flush().await?;
 
     Ok(())
+}
+
+fn remove_runtime_path(path: &Path) {
+    if let Err(error) = std::fs::remove_file(path) {
+        if error.kind() != std::io::ErrorKind::NotFound {
+            eprintln!("Failed to remove runtime path {}: {error}", path.display());
+        }
+    }
 }
