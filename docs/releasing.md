@@ -59,12 +59,12 @@ The repository release workflow:
 - publishes the canonical GitHub Release asset
 - uploads `checksums.txt`
 
-The registry publish workflow:
+The registry publish jobs (npm and crates.io run in parallel):
 
-- targets an existing release tag
-- checks that Cargo, npm, and the requested tag all agree on version
-- checks whether that version is already published on npm and crates.io
-- only publishes the channels explicitly requested
+- target an existing release tag
+- check whether that version is already published on the respective registry
+- skip already-published versions
+- both default to enabled; can be toggled via workflow_dispatch inputs
 
 ## Rerun Safety
 
