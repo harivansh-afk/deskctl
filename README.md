@@ -1,9 +1,11 @@
 # deskctl
-
 [![npm](https://img.shields.io/npm/v/deskctl?label=npm)](https://www.npmjs.com/package/deskctl)
 [![skill](https://img.shields.io/badge/skills.sh-deskctl-111827)](skills/deskctl)
 
-Desktop control cli for AI agents on Linux X11.
+Desktop control cli for AI agents on X11.
+
+https://github.com/user-attachments/assets/e820787e-4d1a-463f-bdcf-a829588778bf
+
 
 ## Install
 
