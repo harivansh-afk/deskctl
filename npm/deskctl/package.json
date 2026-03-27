@@ -1,6 +1,6 @@
 {
   "name": "deskctl",
-  "version": "0.1.13",
+  "version": "0.1.14",
   "description": "Installable deskctl package for Linux X11 agents",
   "license": "MIT",
   "homepage": "https://github.com/harivansh-afk/deskctl",
