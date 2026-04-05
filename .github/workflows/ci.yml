@@ -1,9 +1,5 @@
 name: CI
 
-# Runners: uvacompute (https://uvacompute.com)
-# To enable, set the UVA_RUNNER repo variable to the correct runner label.
-# runs-on: ${{ vars.UVA_RUNNER || 'ubuntu-latest' }}
-
 on:
   pull_request:
     branches: [main]
@@ -37,7 +33,7 @@ permissions:
 jobs:
   changes:
     name: Changes
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, netty]
     outputs:
       rust: ${{ steps.check.outputs.rust }}
       version: ${{ steps.version.outputs.version }}
@@ -105,7 +101,7 @@ jobs:
     name: Validate
     needs: changes
     if: needs.changes.outputs.rust == 'true'
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, netty]
     steps:
       - uses: actions/checkout@v4
 
@@ -129,9 +125,6 @@ jobs:
       - name: Install site dependencies
         run: pnpm --dir site install --frozen-lockfile
 
-      - name: Install system dependencies
-        run: sudo apt-get update && sudo apt-get install -y libx11-dev libxtst-dev
-
       - name: Format check
         run: make fmt-check
 
@@ -148,16 +141,13 @@ jobs:
     name: Integration (Xvfb)
     needs: changes
     if: needs.changes.outputs.rust == 'true'
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, netty]
     steps:
       - uses: actions/checkout@v4
 
       - uses: dtolnay/rust-toolchain@stable
 
       - uses: Swatinem/rust-cache@v2
-
-      - name: Install system dependencies
-        run: sudo apt-get update && sudo apt-get install -y libx11-dev libxtst-dev xvfb
 
       - name: Xvfb integration tests
         run: make test-integration
@@ -166,7 +156,7 @@ jobs:
     name: Distribution Validate
     needs: changes
     if: needs.changes.outputs.rust == 'true'
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, netty]
     steps:
       - uses: actions/checkout@v4
 
@@ -178,19 +168,11 @@ jobs:
         with:
           node-version: 22
 
-      - uses: cachix/install-nix-action@v30
-        with:
-          extra_nix_config: |
-            experimental-features = nix-command flakes
-
-      - name: Install system dependencies
-        run: sudo apt-get update && sudo apt-get install -y libx11-dev libxtst-dev
-
       - name: Distribution validation
         run: make dist-validate
 
   # --- Release pipeline: update-manifests -> build -> release -> publish ---
-  # Version bump happens BEFORE build so the binary has the correct version.
+  # These stay on ubuntu-latest for artifact upload/download and registry publishing.
 
   update-manifests:
     name: Update Manifests
