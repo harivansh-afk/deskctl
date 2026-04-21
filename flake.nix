@@ -1,5 +1,5 @@
 {
-  description = "deskctl - Desktop control CLI for AI agents on Linux X11";
+  description = "deskctl";
 
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
