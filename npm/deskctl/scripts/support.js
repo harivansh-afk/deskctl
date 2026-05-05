@@ -37,7 +37,7 @@ function vendorBinaryPath(target) {
 function releaseBaseUrl(tag) {
   return (
     process.env.DESKCTL_RELEASE_BASE_URL ||
-    `https://github.com/harivansh-afk/deskctl/releases/download/${tag}`
+    `https://git.harivan.sh/harivansh-afk/deskctl/releases/download/${tag}`
   );
 }
 

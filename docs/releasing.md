@@ -2,12 +2,12 @@
 
 This document covers the operator flow for shipping `deskctl` across:
 
-- GitHub Releases
+- Forgejo Releases
 - crates.io
 - npm
 - the repo flake
 
-GitHub Releases are the canonical binary source. The npm package consumes those release assets instead of building a separate binary.
+Forgejo Releases are the canonical binary source. The npm package consumes those release assets instead of building a separate binary.
 
 ## Package Names
 
@@ -35,7 +35,7 @@ These are user-owned prerequisites. The repo can validate and automate the rest,
    - integration
    - distribution validation
    - release asset build
-3. Confirm the GitHub Release exists for the version tag and includes:
+3. Confirm the Forgejo Release exists for the version tag and includes:
    - `deskctl-linux-x86_64`
    - `checksums.txt`
 4. Trigger the `Publish Registries` workflow with:
@@ -56,7 +56,7 @@ The repository validates:
 The repository release workflow:
 
 - builds the Linux release binary
-- publishes the canonical GitHub Release asset
+- publishes the canonical Forgejo Release asset
 - uploads `checksums.txt`
 
 The registry publish jobs (npm and crates.io run in parallel):
@@ -72,7 +72,7 @@ Registry publishing is intentionally separate from release asset creation.
 
 If a partial failure happens:
 
-- GitHub Release assets remain the source of truth
+- Forgejo Release assets remain the source of truth
 - rerun the `Publish Registries` workflow for the same tag
 - already-published channels are reported and skipped
 - remaining channels can still be published
