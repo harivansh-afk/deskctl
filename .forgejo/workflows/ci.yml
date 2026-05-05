@@ -56,7 +56,7 @@ jobs:
               - 'flake.nix'
               - 'flake.lock'
               - 'docker/**'
-              - '.github/workflows/**'
+              - '.forgejo/workflows/**'
               - 'Makefile'
 
       - name: Set outputs
@@ -271,25 +271,39 @@ jobs:
           name: deskctl-linux-x86_64
           path: artifacts/
 
-      - name: Create release
+      - name: Create Forgejo release
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          FORGEJO_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          FORGEJO_API: ${{ github.server_url }}/api/v1
+          REPO: ${{ github.repository }}
+          TAG: ${{ needs.changes.outputs.tag }}
         run: |
           chmod +x artifacts/deskctl
           mv artifacts/deskctl artifacts/deskctl-linux-x86_64
           cd artifacts && sha256sum deskctl-linux-x86_64 > checksums.txt && cd ..
-          if gh release view "${{ needs.changes.outputs.tag }}" >/dev/null 2>&1; then
-            gh release upload "${{ needs.changes.outputs.tag }}" \
-              artifacts/deskctl-linux-x86_64 \
-              artifacts/checksums.txt \
-              --clobber
-          else
-            gh release create "${{ needs.changes.outputs.tag }}" \
-              --title "${{ needs.changes.outputs.tag }}" \
-              --generate-notes \
-              artifacts/deskctl-linux-x86_64 \
-              artifacts/checksums.txt
+          release_json="$(mktemp)"
+          status="$(
+            curl -sS -o "$release_json" -w '%{http_code}' \
+              -H "Authorization: token $FORGEJO_TOKEN" \
+              -H "Content-Type: application/json" \
+              -X POST "$FORGEJO_API/repos/$REPO/releases" \
+              -d "{\"tag_name\":\"$TAG\",\"target_commitish\":\"main\",\"name\":\"$TAG\",\"body\":\"Release $TAG\",\"draft\":false,\"prerelease\":false}"
+          )"
+          if [ "$status" = "409" ]; then
+            curl -fsS -H "Authorization: token $FORGEJO_TOKEN" \
+              "$FORGEJO_API/repos/$REPO/releases/tags/$TAG" -o "$release_json"
+          elif [ "$status" != "201" ]; then
+            cat "$release_json"
+            exit 1
           fi
+          release_id="$(jq -r .id "$release_json")"
+          for file in artifacts/deskctl-linux-x86_64 artifacts/checksums.txt; do
+            name="$(basename "$file")"
+            curl -fsS -H "Authorization: token $FORGEJO_TOKEN" \
+              -X POST \
+              -F "attachment=@$file" \
+              "$FORGEJO_API/repos/$REPO/releases/$release_id/assets?name=$name" >/dev/null
+          done
 
   publish-npm:
     name: Publish npm
