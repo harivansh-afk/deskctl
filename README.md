@@ -4,7 +4,7 @@
 
 Desktop control cli for AI agents on X11.
 
-https://github.com/user-attachments/assets/e820787e-4d1a-463f-bdcf-a829588778bf
+<video controls src="docs/assets/deskctl-demo.mp4"></video>
 
 
 ## Install
