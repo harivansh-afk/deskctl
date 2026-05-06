@@ -4,7 +4,7 @@
 
 Desktop control cli for AI agents on X11.
 
-<video controls src="docs/assets/deskctl-demo.mp4"></video>
+<video controls src="/harivansh-afk/deskctl/media/branch/main/docs/assets/deskctl-demo.mp4"></video>
 
 
 ## Install
