@@ -102,8 +102,6 @@ jobs:
     needs: changes
     if: needs.changes.outputs.rust == 'true'
     runs-on: native
-    env:
-      RUSTUP_HOME: ${{ github.workspace }}/.rustup
     steps:
       - uses: actions/checkout@v4
 
@@ -141,11 +139,9 @@ jobs:
 
   integration:
     name: Integration (Xvfb)
-    needs: changes
+    needs: [changes, validate]
     if: needs.changes.outputs.rust == 'true'
     runs-on: native
-    env:
-      RUSTUP_HOME: ${{ github.workspace }}/.rustup
     steps:
       - uses: actions/checkout@v4
 
@@ -158,11 +154,9 @@ jobs:
 
   distribution:
     name: Distribution Validate
-    needs: changes
+    needs: [changes, integration]
     if: needs.changes.outputs.rust == 'true'
     runs-on: native
-    env:
-      RUSTUP_HOME: ${{ github.workspace }}/.rustup
     steps:
       - uses: actions/checkout@v4
 
