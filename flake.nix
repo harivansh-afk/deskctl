@@ -14,13 +14,27 @@
         pkgs = import nixpkgs { inherit system; };
         lib = pkgs.lib;
         cargoToml = builtins.fromTOML (builtins.readFile ./Cargo.toml);
+        crateFetchurl =
+          args:
+          let
+            crate = builtins.match "https://crates.io/api/v1/crates/([^/]+)/([^/]+)/download" args.url;
+          in
+          pkgs.fetchurl (
+            args
+            // lib.optionalAttrs (crate != null) {
+              url = "https://static.crates.io/crates/${builtins.elemAt crate 0}/${builtins.elemAt crate 1}/download";
+            }
+          );
+        cargoDeps = (pkgs.rustPlatform.importCargoLock.override { fetchurl = crateFetchurl; }) {
+          lockFile = ./Cargo.lock;
+        };
 
         deskctl =
           pkgs.rustPlatform.buildRustPackage {
             pname = cargoToml.package.name;
             version = cargoToml.package.version;
             src = ./.;
-            cargoLock.lockFile = ./Cargo.lock;
+            inherit cargoDeps;
             nativeBuildInputs = [ pkgs.pkg-config ];
             buildInputs = lib.optionals pkgs.stdenv.isLinux [
               pkgs.libx11

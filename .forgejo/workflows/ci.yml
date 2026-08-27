@@ -33,7 +33,7 @@ permissions:
 jobs:
   changes:
     name: Changes
-    runs-on: [self-hosted, netty]
+    runs-on: native
     outputs:
       rust: ${{ steps.check.outputs.rust }}
       version: ${{ steps.version.outputs.version }}
@@ -101,13 +101,13 @@ jobs:
     name: Validate
     needs: changes
     if: needs.changes.outputs.rust == 'true'
-    runs-on: [self-hosted, netty]
+    runs-on: native
     steps:
       - uses: actions/checkout@v4
 
       - uses: dtolnay/rust-toolchain@stable
         with:
-          components: clippy
+          components: clippy, rustfmt
 
       - uses: Swatinem/rust-cache@v2
 
@@ -139,9 +139,9 @@ jobs:
 
   integration:
     name: Integration (Xvfb)
-    needs: changes
+    needs: [changes, validate]
     if: needs.changes.outputs.rust == 'true'
-    runs-on: [self-hosted, netty]
+    runs-on: native
     steps:
       - uses: actions/checkout@v4
 
@@ -154,9 +154,9 @@ jobs:
 
   distribution:
     name: Distribution Validate
-    needs: changes
+    needs: [changes, integration]
     if: needs.changes.outputs.rust == 'true'
-    runs-on: [self-hosted, netty]
+    runs-on: native
     steps:
       - uses: actions/checkout@v4
 
