@@ -42,8 +42,8 @@ npm-package-check:
 	rm -rf tmp/npm-pack tmp/npm-install
 	mkdir -p tmp/npm-pack tmp/npm-install/bin
 	npm pack ./npm/deskctl --pack-destination ./tmp/npm-pack >/dev/null
-	@if [ "$$(uname -s)" != "Linux" ]; then \
-		echo "Skipping npm package runtime smoke test on non-Linux host."; \
+	@if [ "$$(uname -s)-$$(uname -m)" != "Linux-x86_64" ]; then \
+		echo "Skipping npm package runtime smoke test on non-linux-x64 host."; \
 	else \
 		cargo build && \
 		PACK_TGZ=$$(ls ./tmp/npm-pack/*.tgz | head -n 1) && \
