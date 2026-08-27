@@ -7,11 +7,7 @@
   };
 
   outputs =
-    {
-      self,
-      nixpkgs,
-      flake-utils,
-    }:
+    { self, nixpkgs, flake-utils }:
     flake-utils.lib.eachDefaultSystem (
       system:
       let
@@ -33,26 +29,27 @@
           lockFile = ./Cargo.lock;
         };
 
-        deskctl = pkgs.rustPlatform.buildRustPackage {
-          pname = cargoToml.package.name;
-          version = cargoToml.package.version;
-          src = ./.;
-          inherit cargoDeps;
-          nativeBuildInputs = [ pkgs.pkg-config ];
-          buildInputs = lib.optionals pkgs.stdenv.isLinux [
-            pkgs.libx11
-            pkgs.libxtst
-          ];
-          doCheck = false;
+        deskctl =
+          pkgs.rustPlatform.buildRustPackage {
+            pname = cargoToml.package.name;
+            version = cargoToml.package.version;
+            src = ./.;
+            inherit cargoDeps;
+            nativeBuildInputs = [ pkgs.pkg-config ];
+            buildInputs = lib.optionals pkgs.stdenv.isLinux [
+              pkgs.libx11
+              pkgs.libxtst
+            ];
+            doCheck = false;
 
-          meta = with lib; {
-            description = cargoToml.package.description;
-            homepage = cargoToml.package.homepage;
-            license = licenses.mit;
-            mainProgram = "deskctl";
-            platforms = platforms.linux;
+            meta = with lib; {
+              description = cargoToml.package.description;
+              homepage = cargoToml.package.homepage;
+              license = licenses.mit;
+              mainProgram = "deskctl";
+              platforms = platforms.linux;
+            };
           };
-        };
       in
       {
         formatter = pkgs.nixfmt;
@@ -72,21 +69,22 @@
         };
 
         devShells.default = pkgs.mkShell {
-          packages = [
-            pkgs.cargo
-            pkgs.clippy
-            pkgs.nodejs
-            pkgs.nixfmt
-            pkgs.pkg-config
-            pkgs.pnpm
-            pkgs.rustc
-            pkgs.rustfmt
-          ]
-          ++ lib.optionals pkgs.stdenv.isLinux [
-            pkgs.libx11
-            pkgs.libxtst
-            pkgs.xorg.xorgserver
-          ];
+          packages =
+            [
+              pkgs.cargo
+              pkgs.clippy
+              pkgs.nodejs
+              pkgs.nixfmt
+              pkgs.pkg-config
+              pkgs.pnpm
+              pkgs.rustc
+              pkgs.rustfmt
+            ]
+            ++ lib.optionals pkgs.stdenv.isLinux [
+              pkgs.libx11
+              pkgs.libxtst
+              pkgs.xorg.xorgserver
+            ];
         };
       }
     );
