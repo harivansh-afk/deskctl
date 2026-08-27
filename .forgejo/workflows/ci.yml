@@ -33,7 +33,7 @@ permissions:
 jobs:
   changes:
     name: Changes
-    runs-on: [self-hosted, netty]
+    runs-on: native
     outputs:
       rust: ${{ steps.check.outputs.rust }}
       version: ${{ steps.version.outputs.version }}
@@ -101,7 +101,7 @@ jobs:
     name: Validate
     needs: changes
     if: needs.changes.outputs.rust == 'true'
-    runs-on: [self-hosted, netty]
+    runs-on: native
     steps:
       - uses: actions/checkout@v4
 
@@ -141,7 +141,7 @@ jobs:
     name: Integration (Xvfb)
     needs: changes
     if: needs.changes.outputs.rust == 'true'
-    runs-on: [self-hosted, netty]
+    runs-on: native
     steps:
       - uses: actions/checkout@v4
 
@@ -156,7 +156,7 @@ jobs:
     name: Distribution Validate
     needs: changes
     if: needs.changes.outputs.rust == 'true'
-    runs-on: [self-hosted, netty]
+    runs-on: native
     steps:
       - uses: actions/checkout@v4
 
